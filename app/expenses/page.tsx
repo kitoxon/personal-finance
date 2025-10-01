@@ -18,16 +18,16 @@ export default function ExpensesPage() {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  useEffect(() => {
-    loadExpenses();
-  }, []);
-
-  const loadExpenses = () => {
-    const data = storage.getExpenses();
+  const loadExpenses = async () => {
+    const data = await storage.getExpenses();
     setExpenses(data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    void loadExpenses();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!amount || parseFloat(amount) <= 0) {
@@ -35,25 +35,23 @@ export default function ExpensesPage() {
       return;
     }
 
-    const expense: Expense = {
-      id: Date.now().toString(),
+    await storage.saveExpense({
       amount: parseFloat(amount),
       category,
       description,
-      date
-    };
+      date,
+    });
 
-    storage.saveExpense(expense);
     setAmount('');
     setDescription('');
     setDate(format(new Date(), 'yyyy-MM-dd'));
-    loadExpenses();
+    await loadExpenses();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Delete this expense?')) {
-      storage.deleteExpense(id);
-      loadExpenses();
+      await storage.deleteExpense(id);
+      await loadExpenses();
     }
   };
 

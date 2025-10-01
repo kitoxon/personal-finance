@@ -12,15 +12,15 @@ export default function DebtsPage() {
   const [dueDate, setDueDate] = useState('');
 
   useEffect(() => {
-    loadDebts();
+    void loadDebts();
   }, []);
 
-  const loadDebts = () => {
-    const data = storage.getDebts();
+  const loadDebts = async () => {
+    const data = await storage.getDebts();
     setDebts(data.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!amount || parseFloat(amount) <= 0) {
@@ -38,30 +38,27 @@ export default function DebtsPage() {
       return;
     }
 
-    const debt: Debt = {
-      id: Date.now().toString(),
+    await storage.saveDebt({
       name: name.trim(),
       amount: parseFloat(amount),
       dueDate,
-      isPaid: false
-    };
-
-    storage.saveDebt(debt);
+      isPaid: false,
+    });
     setAmount('');
     setName('');
     setDueDate('');
-    loadDebts();
+    await loadDebts();
   };
 
-  const handleTogglePaid = (id: string, currentStatus: boolean) => {
-    storage.updateDebt(id, { isPaid: !currentStatus });
-    loadDebts();
+  const handleTogglePaid = async (id: string, currentStatus: boolean) => {
+    await storage.updateDebt(id, { isPaid: !currentStatus });
+    await loadDebts();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Delete this debt?')) {
-      storage.deleteDebt(id);
-      loadDebts();
+      await storage.deleteDebt(id);
+      await loadDebts();
     }
   };
 

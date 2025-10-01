@@ -13,35 +13,49 @@ export default function Dashboard() {
   const [todayExpenses, setTodayExpenses] = useState(0);
 
   useEffect(() => {
-    const expenses = storage.getExpenses();
-    const income = storage.getIncome();
-    const debts = storage.getDebts();
+    let isMounted = true;
 
-    const now = new Date();
-    const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
-    const today = format(now, 'yyyy-MM-dd');
-    const currentMonth = format(now, 'yyyy-MM');
+    const loadData = async () => {
+      const [expenses, income, debts] = await Promise.all([
+        storage.getExpenses(),
+        storage.getIncome(),
+        storage.getDebts(),
+      ]);
 
-    const monthExpenses = expenses
-      .filter(e => isWithinInterval(new Date(e.date), { start: monthStart, end: monthEnd }))
-      .reduce((sum, e) => sum + e.amount, 0);
-    setMonthlyExpenses(monthExpenses);
+      if (!isMounted) return;
 
-    const todayExp = expenses
-      .filter(e => e.date === today)
-      .reduce((sum, e) => sum + e.amount, 0);
-    setTodayExpenses(todayExp);
+      const now = new Date();
+      const monthStart = startOfMonth(now);
+      const monthEnd = endOfMonth(now);
+      const today = format(now, 'yyyy-MM-dd');
+      const currentMonth = format(now, 'yyyy-MM');
 
-    const monthIncome = income
-      .filter(i => i.month === currentMonth)
-      .reduce((sum, i) => sum + i.amount, 0);
-    setMonthlyIncome(monthIncome);
+      const monthExpenses = expenses
+        .filter(e => isWithinInterval(new Date(e.date), { start: monthStart, end: monthEnd }))
+        .reduce((sum, e) => sum + e.amount, 0);
+      setMonthlyExpenses(monthExpenses);
 
-    const unpaidDebts = debts
-      .filter(d => !d.isPaid)
-      .reduce((sum, d) => sum + d.amount, 0);
-    setTotalDebts(unpaidDebts);
+      const todayExp = expenses
+        .filter(e => e.date === today)
+        .reduce((sum, e) => sum + e.amount, 0);
+      setTodayExpenses(todayExp);
+
+      const monthIncome = income
+        .filter(i => i.month === currentMonth)
+        .reduce((sum, i) => sum + i.amount, 0);
+      setMonthlyIncome(monthIncome);
+
+      const unpaidDebts = debts
+        .filter(d => !d.isPaid)
+        .reduce((sum, d) => sum + d.amount, 0);
+      setTotalDebts(unpaidDebts);
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const balance = monthlyIncome - monthlyExpenses - totalDebts;

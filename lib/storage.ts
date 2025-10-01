@@ -1,9 +1,13 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import { getSupabaseBrowserClient } from './supabase/browser';
+
 export interface Expense {
   id: string;
   amount: number;
   category: string;
   description: string;
   date: string;
+  createdAt?: string;
 }
 
 export interface Income {
@@ -11,6 +15,7 @@ export interface Income {
   amount: number;
   source: string;
   month: string;
+  createdAt?: string;
 }
 
 export interface Debt {
@@ -19,69 +24,346 @@ export interface Debt {
   amount: number;
   dueDate: string;
   isPaid: boolean;
+  createdAt?: string;
 }
+
+export type NewExpenseInput = Omit<Expense, 'id' | 'createdAt'>;
+export type NewIncomeInput = Omit<Income, 'id' | 'createdAt'>;
+export type NewDebtInput = Omit<Debt, 'id' | 'createdAt'>;
+
+const LOCAL_KEYS = {
+  expenses: 'expenses',
+  income: 'income',
+  debts: 'debts',
+} as const;
+
+const isBrowser = () => typeof window !== 'undefined';
+
+const readLocal = <T>(key: string): T[] => {
+  if (!isBrowser()) return [];
+  try {
+    const data = window.localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.warn(`Failed to read ${key} from localStorage`, error);
+    return [];
+  }
+};
+
+const writeLocal = <T>(key: string, value: T[]) => {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.warn(`Failed to write ${key} to localStorage`, error);
+  }
+};
+
+const getClient = (): SupabaseClient | null => {
+  try {
+    return getSupabaseBrowserClient();
+  } catch (error) {
+    console.warn('Supabase client unavailable, falling back to localStorage.', error);
+    return null;
+  }
+};
+
+const mapExpenseRow = (row: any): Expense => ({
+  id: row.id,
+  amount: Number(row.amount),
+  category: row.category,
+  description: row.description ?? '',
+  date: row.date,
+  createdAt: row.created_at ?? undefined,
+});
+
+const mapIncomeRow = (row: any): Income => ({
+  id: row.id,
+  amount: Number(row.amount),
+  source: row.source,
+  month: row.month,
+  createdAt: row.created_at ?? undefined,
+});
+
+const mapDebtRow = (row: any): Debt => ({
+  id: row.id,
+  name: row.name,
+  amount: Number(row.amount),
+  dueDate: row.due_date,
+  isPaid: Boolean(row.is_paid),
+  createdAt: row.created_at ?? undefined,
+});
+
+const syncLocalAfterInsert = <T extends { id: string }>(key: string, record: T) => {
+  if (!isBrowser()) return;
+  const existing = readLocal<T>(key).filter(item => item.id !== record.id);
+  writeLocal(key, [record, ...existing]);
+};
+
+const removeLocalRecord = (key: string, id: string) => {
+  if (!isBrowser()) return;
+  const existing = readLocal<{ id: string }>(key).filter(item => item.id !== id);
+  writeLocal(key, existing);
+};
+
+const updateLocalRecord = <T extends { id: string }>(key: string, id: string, updater: (item: T) => T) => {
+  if (!isBrowser()) return;
+  const existing = readLocal<T>(key);
+  const updated = existing.map(item => (item.id === id ? updater(item) : item));
+  writeLocal(key, updated);
+};
+
+const generateLocalId = () => {
+  if (typeof crypto !== 'undefined') {
+    if ('randomUUID' in crypto) {
+      return crypto.randomUUID();
+    }
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    array[6] = (array[6] & 0x0f) | 0x40; // version 4
+    array[8] = (array[8] & 0x3f) | 0x80; // variant
+    const hex = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}`;
+  }
+  return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
 
 export const storage = {
   // Expenses
-  getExpenses(): Expense[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem('expenses');
-    return data ? JSON.parse(data) : [];
+  async getExpenses(): Promise<Expense[]> {
+    const client = getClient();
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('expenses')
+          .select('*')
+          .order('date', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
+          const mapped = data.map(mapExpenseRow);
+          writeLocal(LOCAL_KEYS.expenses, mapped);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to fetch expenses from Supabase, using localStorage data.', error);
+      }
+    }
+
+    return readLocal<Expense>(LOCAL_KEYS.expenses);
   },
-  
-  saveExpense(expense: Expense) {
-    const expenses = this.getExpenses();
-    expenses.push(expense);
-    localStorage.setItem('expenses', JSON.stringify(expenses));
+
+  async saveExpense(payload: NewExpenseInput): Promise<Expense> {
+    const client = getClient();
+
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('expenses')
+          .insert([{ ...payload, description: payload.description || null }])
+          .select('*')
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          const mapped = mapExpenseRow(data);
+          syncLocalAfterInsert(LOCAL_KEYS.expenses, mapped);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to save expense to Supabase, storing locally instead.', error);
+      }
+    }
+
+    const fallback: Expense = {
+      id: generateLocalId(),
+      ...payload,
+      createdAt: new Date().toISOString(),
+    };
+    syncLocalAfterInsert(LOCAL_KEYS.expenses, fallback);
+    return fallback;
   },
-  
-  deleteExpense(id: string) {
-    const expenses = this.getExpenses().filter(e => e.id !== id);
-    localStorage.setItem('expenses', JSON.stringify(expenses));
+
+  async deleteExpense(id: string): Promise<void> {
+    const client = getClient();
+    if (client) {
+      try {
+        const { error } = await client.from('expenses').delete().eq('id', id);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Failed to delete expense from Supabase, removing local copy only.', error);
+      }
+    }
+
+    removeLocalRecord(LOCAL_KEYS.expenses, id);
   },
 
   // Income
-  getIncome(): Income[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem('income');
-    return data ? JSON.parse(data) : [];
+  async getIncome(): Promise<Income[]> {
+    const client = getClient();
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('income')
+          .select('*')
+          .order('month', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
+          const mapped = data.map(mapIncomeRow);
+          writeLocal(LOCAL_KEYS.income, mapped);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to fetch income from Supabase, using localStorage data.', error);
+      }
+    }
+
+    return readLocal<Income>(LOCAL_KEYS.income);
   },
-  
-  saveIncome(income: Income) {
-    const incomes = this.getIncome();
-    incomes.push(income);
-    localStorage.setItem('income', JSON.stringify(incomes));
+
+  async saveIncome(payload: NewIncomeInput): Promise<Income> {
+    const client = getClient();
+
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('income')
+          .insert([payload])
+          .select('*')
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          const mapped = mapIncomeRow(data);
+          syncLocalAfterInsert(LOCAL_KEYS.income, mapped);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to save income to Supabase, storing locally instead.', error);
+      }
+    }
+
+    const fallback: Income = {
+      id: generateLocalId(),
+      ...payload,
+      createdAt: new Date().toISOString(),
+    };
+    syncLocalAfterInsert(LOCAL_KEYS.income, fallback);
+    return fallback;
   },
-  
-  deleteIncome(id: string) {
-    const incomes = this.getIncome().filter(i => i.id !== id);
-    localStorage.setItem('income', JSON.stringify(incomes));
+
+  async deleteIncome(id: string): Promise<void> {
+    const client = getClient();
+    if (client) {
+      try {
+        const { error } = await client.from('income').delete().eq('id', id);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Failed to delete income from Supabase, removing local copy only.', error);
+      }
+    }
+
+    removeLocalRecord(LOCAL_KEYS.income, id);
   },
 
   // Debts
-  getDebts(): Debt[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem('debts');
-    return data ? JSON.parse(data) : [];
-  },
-  
-  saveDebt(debt: Debt) {
-    const debts = this.getDebts();
-    debts.push(debt);
-    localStorage.setItem('debts', JSON.stringify(debts));
-  },
-  
-  updateDebt(id: string, updates: Partial<Debt>) {
-    const debts = this.getDebts();
-    const index = debts.findIndex(d => d.id === id);
-    if (index !== -1) {
-      debts[index] = { ...debts[index], ...updates };
-      localStorage.setItem('debts', JSON.stringify(debts));
+  async getDebts(): Promise<Debt[]> {
+    const client = getClient();
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('debts')
+          .select('*')
+          .order('due_date', { ascending: true });
+
+        if (error) throw error;
+
+        if (data) {
+          const mapped = data.map(mapDebtRow);
+          writeLocal(LOCAL_KEYS.debts, mapped);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to fetch debts from Supabase, using localStorage data.', error);
+      }
     }
+
+    return readLocal<Debt>(LOCAL_KEYS.debts);
   },
-  
-  deleteDebt(id: string) {
-    const debts = this.getDebts().filter(d => d.id !== id);
-    localStorage.setItem('debts', JSON.stringify(debts));
-  }
+
+  async saveDebt(payload: NewDebtInput): Promise<Debt> {
+    const client = getClient();
+
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('debts')
+          .insert([
+            {
+              name: payload.name,
+              amount: payload.amount,
+              due_date: payload.dueDate,
+              is_paid: payload.isPaid,
+            },
+          ])
+          .select('*')
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          const mapped = mapDebtRow(data);
+          syncLocalAfterInsert(LOCAL_KEYS.debts, mapped);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to save debt to Supabase, storing locally instead.', error);
+      }
+    }
+
+    const fallback: Debt = {
+      id: generateLocalId(),
+      ...payload,
+      createdAt: new Date().toISOString(),
+    };
+    syncLocalAfterInsert(LOCAL_KEYS.debts, fallback);
+    return fallback;
+  },
+
+  async updateDebt(id: string, updates: Partial<Debt>): Promise<void> {
+    const client = getClient();
+    const supabasePayload: Record<string, unknown> = {};
+
+    if (updates.name !== undefined) supabasePayload.name = updates.name;
+    if (updates.amount !== undefined) supabasePayload.amount = updates.amount;
+    if (updates.dueDate !== undefined) supabasePayload.due_date = updates.dueDate;
+    if (updates.isPaid !== undefined) supabasePayload.is_paid = updates.isPaid;
+
+    if (client && Object.keys(supabasePayload).length > 0) {
+      try {
+        const { error } = await client.from('debts').update(supabasePayload).eq('id', id);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Failed to update debt in Supabase, updating local copy only.', error);
+      }
+    }
+
+    updateLocalRecord<Debt>(LOCAL_KEYS.debts, id, debt => ({ ...debt, ...updates }));
+  },
+
+  async deleteDebt(id: string): Promise<void> {
+    const client = getClient();
+    if (client) {
+      try {
+        const { error } = await client.from('debts').delete().eq('id', id);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Failed to delete debt from Supabase, removing local copy only.', error);
+      }
+    }
+
+    removeLocalRecord(LOCAL_KEYS.debts, id);
+  },
 };

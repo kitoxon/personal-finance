@@ -13,15 +13,15 @@ export default function IncomePage() {
   const [month, setMonth] = useState(format(new Date(), 'yyyy-MM'));
 
   useEffect(() => {
-    loadIncomes();
+    void loadIncomes();
   }, []);
 
-  const loadIncomes = () => {
-    const data = storage.getIncome();
+  const loadIncomes = async () => {
+    const data = await storage.getIncome();
     setIncomes(data.sort((a, b) => b.month.localeCompare(a.month)));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!amount || parseFloat(amount) <= 0) {
@@ -34,23 +34,20 @@ export default function IncomePage() {
       return;
     }
 
-    const income: Income = {
-      id: Date.now().toString(),
+    await storage.saveIncome({
       amount: parseFloat(amount),
       source: source.trim(),
-      month
-    };
-
-    storage.saveIncome(income);
+      month,
+    });
     setAmount('');
     setSource('');
-    loadIncomes();
+    await loadIncomes();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Delete this income record?')) {
-      storage.deleteIncome(id);
-      loadIncomes();
+      await storage.deleteIncome(id);
+      await loadIncomes();
     }
   };
 
