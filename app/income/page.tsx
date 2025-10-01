@@ -59,29 +59,31 @@ export default function IncomePage() {
     .reduce((sum, i) => sum + i.amount, 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-slate-100 pb-20">
       {/* Header */}
-      <div className="bg-gradient-to-br from-emerald-500 via-green-600 to-teal-600 text-white px-6 pt-8 pb-8 rounded-b-[2.5rem] shadow-xl">
-        <div className="max-w-lg mx-auto">
+      <div className="bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-950 text-white px-6 pt-8 pb-8 rounded-b-[2.5rem] shadow-2xl border-b border-slate-800/60">
+        <div className="max-w-3xl mx-auto">
           <h1 className="text-2xl font-bold mb-2">Income</h1>
           <div className="flex items-center gap-2">
-            <p className="text-emerald-100 text-sm">This month:</p>
-            <p className="text-xl font-bold">¥{currentMonthTotal.toLocaleString()}</p>
+            <p className="text-emerald-200 text-sm">This month:</p>
+            <p className="text-xl font-bold text-emerald-100">¥{currentMonthTotal.toLocaleString()}</p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-6 -mt-4">
+      <div className="max-w-3xl mx-auto px-6 -mt-4">
         {/* Add Income Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800 mb-5 flex items-center gap-2">
-            <PlusCircle size={20} className="text-emerald-600" />
-            Add New Income
+        <form onSubmit={handleSubmit} className="bg-slate-900/80 rounded-2xl shadow-xl p-6 mb-6 border border-slate-800/80">
+          <h2 className="text-lg font-bold text-slate-100 mb-5 flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/30 text-emerald-200 shadow-md">
+              <PlusCircle size={18} className="text-emerald-100" />
+            </span>
+            <span>Add New Income</span>
           </h2>
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-slate-200 mb-2">
                 Amount (¥)
               </label>
               <input
@@ -89,13 +91,13 @@ export default function IncomePage() {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="300000"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-lg font-semibold transition-all"
+                className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl bg-slate-950/60 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-slate-950/80 text-lg font-semibold transition-all shadow-sm"
                 inputMode="numeric"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-slate-200 mb-2">
                 Source
               </label>
               <input
@@ -103,27 +105,27 @@ export default function IncomePage() {
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
                 placeholder="Salary, Bonus, Freelance, etc."
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl bg-slate-950/60 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all shadow-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-slate-200 mb-2">
                 Month
               </label>
               <input
                 type="month"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium transition-all"
+                className="w-full px-4 py-3 border-2 border-slate-800 rounded-xl bg-slate-950/60 text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-medium transition-all shadow-sm"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 py-4 rounded-xl font-bold hover:from-emerald-400 hover:to-teal-400 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
             >
-              <PlusCircle size={20} />
+              <PlusCircle size={20} className="text-slate-950" />
               Add Income
             </button>
           </div>
@@ -131,38 +133,38 @@ export default function IncomePage() {
 
         {/* Income List */}
         <div className="space-y-4">
-          <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <TrendingUp size={20} />
+          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <TrendingUp size={20} className="text-emerald-200" />
             Income History
           </h2>
           
           {incomes.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-md p-10 text-center border border-gray-100">
+            <div className="bg-slate-900/60 rounded-2xl shadow-md p-10 text-center border border-slate-800/70">
               <div className="text-6xl mb-4">💰</div>
-              <p className="text-gray-500 font-medium">No income recorded yet</p>
-              <p className="text-sm text-gray-400 mt-2">Add your first income above</p>
+              <p className="text-slate-300 font-medium">No income recorded yet</p>
+              <p className="text-sm text-slate-500 mt-2">Add your first income above</p>
             </div>
           ) : (
             incomes.map(income => (
-              <div key={income.id} className="bg-white rounded-2xl shadow-md p-5 border border-gray-100 hover:shadow-lg transition-all">
+              <div key={income.id} className="bg-slate-900/70 rounded-2xl shadow-md p-5 border border-slate-800/80 hover:shadow-lg transition-all">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center shadow-md">
-                        <DollarSign size={20} className="text-white" />
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md bg-emerald-500/30 text-emerald-100">
+                        <DollarSign size={20} />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-gray-800">{income.source}</p>
-                        <p className="text-xs text-gray-500">{income.month}</p>
+                        <p className="text-sm font-bold text-slate-100">{income.source}</p>
+                        <p className="text-xs text-slate-400">{income.month}</p>
                       </div>
                     </div>
-                    <p className="text-2xl font-bold text-emerald-600 mt-2">
+                    <p className="text-2xl font-bold text-emerald-300 mt-2">
                       ¥{income.amount.toLocaleString()}
                     </p>
                   </div>
                   <button
                     onClick={() => handleDelete(income.id)}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-all"
+                    className="text-rose-300 hover:text-rose-200 hover:bg-rose-500/10 p-2 rounded-lg transition-all"
                   >
                     <Trash2 size={20} />
                   </button>
