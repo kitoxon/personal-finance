@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Navigation from '@/components/Navigation';
 import { storage } from '@/lib/storage';
-import { Wallet, TrendingUp, CreditCard, Calendar } from 'lucide-react';
+import { Wallet, TrendingUp, CreditCard, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function Dashboard() {
@@ -23,25 +23,21 @@ export default function Dashboard() {
     const today = format(now, 'yyyy-MM-dd');
     const currentMonth = format(now, 'yyyy-MM');
 
-    // Calculate monthly expenses
     const monthExpenses = expenses
       .filter(e => isWithinInterval(new Date(e.date), { start: monthStart, end: monthEnd }))
       .reduce((sum, e) => sum + e.amount, 0);
     setMonthlyExpenses(monthExpenses);
 
-    // Calculate today's expenses
     const todayExp = expenses
       .filter(e => e.date === today)
       .reduce((sum, e) => sum + e.amount, 0);
     setTodayExpenses(todayExp);
 
-    // Calculate monthly income
     const monthIncome = income
       .filter(i => i.month === currentMonth)
       .reduce((sum, i) => sum + i.amount, 0);
     setMonthlyIncome(monthIncome);
 
-    // Calculate total unpaid debts
     const unpaidDebts = debts
       .filter(d => !d.isPaid)
       .reduce((sum, d) => sum + d.amount, 0);
@@ -51,66 +47,109 @@ export default function Dashboard() {
   const balance = monthlyIncome - monthlyExpenses - totalDebts;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="bg-gradient-to-br from-blue-600 to-blue-800 text-white p-6 rounded-b-3xl shadow-lg">
-        <h1 className="text-2xl font-bold mb-6">財務ダッシュボード</h1>
-        
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 mb-4">
-          <p className="text-sm opacity-90 mb-1">今月の残高</p>
-          <p className="text-3xl font-bold">¥{balance.toLocaleString()}</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-3">
-            <div className="flex items-center mb-2">
-              <TrendingUp size={16} className="mr-1" />
-              <p className="text-xs opacity-90">収入</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 pb-20">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 text-white px-6 pt-8 pb-12 rounded-b-[2.5rem] shadow-xl">
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <p className="text-blue-100 text-sm font-medium mb-1">Welcome back!</p>
+              <h1 className="text-2xl font-bold">Finance Dashboard</h1>
             </div>
-            <p className="text-xl font-semibold">¥{monthlyIncome.toLocaleString()}</p>
+            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+              <Wallet className="text-white" size={24} />
+            </div>
           </div>
-
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-3">
-            <div className="flex items-center mb-2">
-              <Wallet size={16} className="mr-1" />
-              <p className="text-xs opacity-90">支出</p>
-            </div>
-            <p className="text-xl font-semibold">¥{monthlyExpenses.toLocaleString()}</p>
+          
+          {/* Balance Card */}
+          <div className="bg-white/15 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
+            <p className="text-blue-100 text-sm font-medium mb-2">Current Balance</p>
+            <p className={`text-4xl font-bold mb-1 ${balance >= 0 ? 'text-white' : 'text-red-200'}`}>
+              ¥{balance.toLocaleString()}
+            </p>
+            <p className="text-xs text-blue-100">
+              {balance >= 0 ? '🎉 Great job managing your finances!' : '⚠️ You are in deficit this month'}
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="p-6 space-y-4">
-        <div className="bg-white rounded-xl shadow-sm p-4 flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="bg-blue-100 p-3 rounded-lg mr-3">
-              <Calendar className="text-blue-600" size={24} />
+      {/* Stats Grid */}
+      <div className="max-w-lg mx-auto px-6 -mt-6">
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {/* Income Card */}
+          <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-md">
+                <ArrowUpRight className="text-white" size={20} />
+              </div>
+              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                Income
+              </span>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">今日の支出</p>
-              <p className="text-xl font-bold">¥{todayExpenses.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-gray-900 mb-1">¥{monthlyIncome.toLocaleString()}</p>
+            <p className="text-xs text-gray-500">This month</p>
+          </div>
+
+          {/* Expenses Card */}
+          <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-md">
+                <ArrowDownRight className="text-white" size={20} />
+              </div>
+              <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
+                Expenses
+              </span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900 mb-1">¥{monthlyExpenses.toLocaleString()}</p>
+            <p className="text-xs text-gray-500">This month</p>
+          </div>
+        </div>
+
+        {/* Today & Debts */}
+        <div className="space-y-4">
+          {/* Today's Expenses */}
+          <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-md">
+                <Calendar className="text-white" size={22} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-0.5">Today's Spending</p>
+                <p className="text-2xl font-bold text-gray-900">¥{todayExpenses.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Unpaid Debts */}
+          <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-red-400 to-pink-500 rounded-xl flex items-center justify-center shadow-md">
+                <CreditCard className="text-white" size={22} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-0.5">Unpaid Debts</p>
+                <p className="text-2xl font-bold text-red-600">¥{totalDebts.toLocaleString()}</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4 flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="bg-red-100 p-3 rounded-lg mr-3">
-              <CreditCard className="text-red-600" size={24} />
-            </div>
+        {/* Quick Tip */}
+        <div className="mt-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-100">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">💡</span>
             <div>
-              <p className="text-sm text-gray-600">未払い借金</p>
-              <p className="text-xl font-bold text-red-600">¥{totalDebts.toLocaleString()}</p>
+              <h3 className="font-semibold text-gray-800 mb-1">Monthly Summary</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                {balance > 0 
+                  ? `Excellent! You have ¥${balance.toLocaleString()} remaining this month. Keep it up!` 
+                  : balance === 0
+                  ? 'You are breaking even this month. Try to save more!'
+                  : `Watch out! You are ¥${Math.abs(balance).toLocaleString()} over budget this month.`}
+              </p>
             </div>
           </div>
-        </div>
-
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
-          <h3 className="font-semibold text-gray-800 mb-2">💡 今月のヒント</h3>
-          <p className="text-sm text-gray-600">
-            {balance > 0 
-              ? `素晴らしい！今月は¥${balance.toLocaleString()}の黒字です。` 
-              : `注意：今月は¥${Math.abs(balance).toLocaleString()}の赤字です。`}
-          </p>
         </div>
       </div>
 

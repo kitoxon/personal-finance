@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import { storage, Debt } from '@/lib/storage';
-import { PlusCircle, Trash2, CreditCard, CheckCircle, Circle } from 'lucide-react';
-import { format } from 'date-fns';
+import { PlusCircle, Trash2, CreditCard, CheckCircle, Circle, AlertCircle } from 'lucide-react';
 
 export default function DebtsPage() {
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -25,17 +24,17 @@ export default function DebtsPage() {
     e.preventDefault();
     
     if (!amount || parseFloat(amount) <= 0) {
-      alert('金額を入力してください');
+      alert('Please enter a valid amount');
       return;
     }
 
     if (!name.trim()) {
-      alert('借金名を入力してください');
+      alert('Please enter a debt name');
       return;
     }
 
     if (!dueDate) {
-      alert('支払期日を入力してください');
+      alert('Please enter a due date');
       return;
     }
 
@@ -60,7 +59,7 @@ export default function DebtsPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('この借金を削除しますか？')) {
+    if (confirm('Delete this debt?')) {
       storage.deleteDebt(id);
       loadDebts();
     }
@@ -71,73 +70,88 @@ export default function DebtsPage() {
   const totalUnpaid = unpaidDebts.reduce((sum, d) => sum + d.amount, 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <div className="bg-red-600 text-white p-6">
-        <h1 className="text-2xl font-bold mb-2">借金管理</h1>
-        <p className="text-sm opacity-90">未払い合計: ¥{totalUnpaid.toLocaleString()}</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-red-50 pb-20">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-red-500 via-pink-600 to-rose-600 text-white px-6 pt-8 pb-8 rounded-b-[2.5rem] shadow-xl">
+        <div className="max-w-lg mx-auto">
+          <h1 className="text-2xl font-bold mb-2">Debts & Bills</h1>
+          <div className="flex items-center gap-2">
+            <p className="text-red-100 text-sm">Total unpaid:</p>
+            <p className="text-xl font-bold">¥{totalUnpaid.toLocaleString()}</p>
+          </div>
+        </div>
       </div>
 
-      <div className="p-6">
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">新しい借金</h2>
+      <div className="max-w-lg mx-auto px-6 -mt-4">
+        {/* Add Debt Form */}
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
+          <h2 className="text-lg font-bold text-gray-800 mb-5 flex items-center gap-2">
+            <PlusCircle size={20} className="text-red-600" />
+            Add New Debt
+          </h2>
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                借金名
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Debt Name
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="クレジットカード、ローンなど"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                placeholder="Credit Card, Loan, Bill, etc."
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                金額 (¥)
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Amount (¥)
               </label>
               <input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="50000"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-lg"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 text-lg font-semibold transition-all"
                 inputMode="numeric"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                支払期日
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Due Date
               </label>
               <input
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 font-medium transition-all"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition flex items-center justify-center"
+              className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white py-4 rounded-xl font-bold hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
             >
-              <PlusCircle size={20} className="mr-2" />
-              追加する
+              <PlusCircle size={20} />
+              Add Debt
             </button>
           </div>
         </form>
 
         {/* Unpaid Debts */}
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">未払い ({unpaidDebts.length})</h2>
+          <h2 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+            <AlertCircle size={20} className="text-red-600" />
+            Unpaid ({unpaidDebts.length})
+          </h2>
           
           {unpaidDebts.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm p-6 text-center text-gray-500">
-              未払いの借金はありません 🎉
+            <div className="bg-white rounded-2xl shadow-md p-10 text-center border border-gray-100">
+              <div className="text-6xl mb-4">🎉</div>
+              <p className="text-gray-500 font-medium">No unpaid debts!</p>
+              <p className="text-sm text-gray-400 mt-2">You're doing great!</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -146,37 +160,45 @@ export default function DebtsPage() {
                 return (
                   <div 
                     key={debt.id} 
-                    className={`bg-white rounded-xl shadow-sm p-4 border-l-4 ${
-                      isOverdue ? 'border-red-500' : 'border-yellow-500'
-                    }`}
+                    className={`bg-white rounded-2xl shadow-md p-5 border-l-4 ${
+                      isOverdue ? 'border-red-500' : 'border-yellow-400'
+                    } hover:shadow-lg transition-all`}
                   >
-                    <div className="flex justify-between items-start mb-3">
+                    <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
-                        <div className="flex items-center mb-1">
-                          <CreditCard size={16} className="text-red-600 mr-2" />
-                          <span className="font-semibold text-gray-800">{debt.name}</span>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${
+                            isOverdue 
+                              ? 'bg-gradient-to-br from-red-400 to-rose-500' 
+                              : 'bg-gradient-to-br from-yellow-400 to-orange-500'
+                          }`}>
+                            <CreditCard size={20} className="text-white" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-800">{debt.name}</p>
+                            <p className="text-xs text-gray-500">
+                              Due: {debt.dueDate}
+                              {isOverdue && <span className="text-red-600 font-bold ml-2">OVERDUE!</span>}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-xs text-gray-500 mb-2">
-                          期日: {debt.dueDate}
-                          {isOverdue && <span className="text-red-600 ml-2 font-semibold">期限切れ！</span>}
-                        </p>
-                        <p className="text-2xl font-bold text-red-600">
+                        <p className="text-2xl font-bold text-red-600 mt-2">
                           ¥{debt.amount.toLocaleString()}
                         </p>
                       </div>
                       <button
                         onClick={() => handleDelete(debt.id)}
-                        className="text-red-500 hover:text-red-700 p-2"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-all"
                       >
                         <Trash2 size={20} />
                       </button>
                     </div>
                     <button
                       onClick={() => handleTogglePaid(debt.id, debt.isPaid)}
-                      className="w-full bg-green-100 text-green-700 py-2 rounded-lg font-medium hover:bg-green-200 transition flex items-center justify-center"
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-600 transition-all shadow-md flex items-center justify-center gap-2"
                     >
-                      <CheckCircle size={18} className="mr-2" />
-                      支払い済みにする
+                      <CheckCircle size={18} />
+                      Mark as Paid
                     </button>
                   </div>
                 );
@@ -188,37 +210,44 @@ export default function DebtsPage() {
         {/* Paid Debts */}
         {paidDebts.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold text-gray-800 mb-3">支払い済み ({paidDebts.length})</h2>
+            <h2 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <CheckCircle size={20} className="text-green-600" />
+              Paid ({paidDebts.length})
+            </h2>
             <div className="space-y-3">
               {paidDebts.map(debt => (
                 <div 
                   key={debt.id} 
-                  className="bg-gray-50 rounded-xl shadow-sm p-4 border-l-4 border-green-500 opacity-75"
+                  className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-md p-5 border border-green-200 opacity-75"
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
-                      <div className="flex items-center mb-1">
-                        <CheckCircle size={16} className="text-green-600 mr-2" />
-                        <span className="font-semibold text-gray-700 line-through">{debt.name}</span>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-md">
+                          <CheckCircle size={20} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-700 line-through">{debt.name}</p>
+                          <p className="text-xs text-gray-500">Paid on: {debt.dueDate}</p>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500 mb-2">期日: {debt.dueDate}</p>
-                      <p className="text-xl font-bold text-gray-600 line-through">
+                      <p className="text-xl font-bold text-gray-600 line-through mt-2">
                         ¥{debt.amount.toLocaleString()}
                       </p>
                     </div>
                     <button
                       onClick={() => handleDelete(debt.id)}
-                      className="text-red-500 hover:text-red-700 p-2"
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-all"
                     >
                       <Trash2 size={20} />
                     </button>
                   </div>
                   <button
                     onClick={() => handleTogglePaid(debt.id, debt.isPaid)}
-                    className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-300 transition flex items-center justify-center"
+                    className="w-full bg-gray-200 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-300 transition-all flex items-center justify-center gap-2"
                   >
-                    <Circle size={18} className="mr-2" />
-                    未払いに戻す
+                    <Circle size={18} />
+                    Mark as Unpaid
                   </button>
                 </div>
               ))}
