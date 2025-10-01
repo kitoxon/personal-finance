@@ -151,7 +151,7 @@ export default function DebtsPage() {
             <div className="bg-white rounded-2xl shadow-md p-10 text-center border border-gray-100">
               <div className="text-6xl mb-4">🎉</div>
               <p className="text-gray-500 font-medium">No unpaid debts!</p>
-              <p className="text-sm text-gray-400 mt-2">You're doing great!</p>
+              <p className="text-gray-500 font-medium">You&apos;re doing great!</p>
             </div>
           ) : (
             <div className="space-y-3">

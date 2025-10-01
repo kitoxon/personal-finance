@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import { storage, Expense } from '@/lib/storage';
-import { PlusCircle, Trash2, Calendar, Tag } from 'lucide-react';
+import { PlusCircle, Trash2, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 
 const categories = [

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Navigation from '@/components/Navigation';
 import { storage } from '@/lib/storage';
-import { Wallet, TrendingUp, CreditCard, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Wallet, CreditCard, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 export default function Dashboard() {
@@ -115,7 +115,7 @@ export default function Dashboard() {
                 <Calendar className="text-white" size={22} />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-0.5">Today's Spending</p>
+                <p className="text-sm font-medium text-gray-600 mb-0.5">Today&apos;s Spending</p>
                 <p className="text-2xl font-bold text-gray-900">¥{todayExpenses.toLocaleString()}</p>
               </div>
             </div>
@@ -141,7 +141,7 @@ export default function Dashboard() {
             <span className="text-2xl">💡</span>
             <div>
               <h3 className="font-semibold text-gray-800 mb-1">Monthly Summary</h3>
-              <p className="text-sm text-gray-600 leading-relaxed">
+             <p className="text-sm text-gray-600 leading-relaxed">
                 {balance > 0 
                   ? `Excellent! You have ¥${balance.toLocaleString()} remaining this month. Keep it up!` 
                   : balance === 0
