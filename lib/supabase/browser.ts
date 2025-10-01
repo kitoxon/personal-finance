@@ -1,21 +1,27 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+'use client';
+
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-let browserClient: SupabaseClient | undefined;
+let browserClientPromise: Promise<SupabaseClient> | null = null;
 
-const ensureEnv = () => {
+export const getSupabaseBrowserClient = async (): Promise<SupabaseClient | null> => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase browser client requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
-  }
-};
-
-export const getSupabaseBrowserClient = () => {
-  if (!browserClient) {
-    ensureEnv();
-    browserClient = createClient(supabaseUrl!, supabaseAnonKey!);
+    console.warn('Supabase browser client env vars are missing.');
+    return null;
   }
 
-  return browserClient;
+  if (!browserClientPromise) {
+    browserClientPromise = import('@supabase/supabase-js').then(({ createClient }) =>
+      createClient(supabaseUrl, supabaseAnonKey)
+    );
+  }
+
+  return browserClientPromise;
 };

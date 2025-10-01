@@ -1,5 +1,33 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+'use client';
+
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient } from './supabase/browser';
+
+type ExpenseRow = {
+  id: string;
+  amount: number | string;
+  category: string;
+  description?: string | null;
+  date: string;
+  created_at?: string | null;
+};
+
+type IncomeRow = {
+  id: string;
+  amount: number | string;
+  source: string;
+  month: string;
+  created_at?: string | null;
+};
+
+type DebtRow = {
+  id: string;
+  name: string;
+  amount: number | string;
+  due_date: string;
+  is_paid: boolean;
+  created_at?: string | null;
+};
 
 export interface Expense {
   id: string;
@@ -59,16 +87,16 @@ const writeLocal = <T>(key: string, value: T[]) => {
   }
 };
 
-const getClient = (): SupabaseClient | null => {
+const getClient = async (): Promise<SupabaseClient | null> => {
   try {
-    return getSupabaseBrowserClient();
+    return await getSupabaseBrowserClient();
   } catch (error) {
     console.warn('Supabase client unavailable, falling back to localStorage.', error);
     return null;
   }
 };
 
-const mapExpenseRow = (row: any): Expense => ({
+const mapExpenseRow = (row: ExpenseRow): Expense => ({
   id: row.id,
   amount: Number(row.amount),
   category: row.category,
@@ -77,7 +105,7 @@ const mapExpenseRow = (row: any): Expense => ({
   createdAt: row.created_at ?? undefined,
 });
 
-const mapIncomeRow = (row: any): Income => ({
+const mapIncomeRow = (row: IncomeRow): Income => ({
   id: row.id,
   amount: Number(row.amount),
   source: row.source,
@@ -85,7 +113,7 @@ const mapIncomeRow = (row: any): Income => ({
   createdAt: row.created_at ?? undefined,
 });
 
-const mapDebtRow = (row: any): Debt => ({
+const mapDebtRow = (row: DebtRow): Debt => ({
   id: row.id,
   name: row.name,
   amount: Number(row.amount),
@@ -114,12 +142,13 @@ const updateLocalRecord = <T extends { id: string }>(key: string, id: string, up
 };
 
 const generateLocalId = () => {
-  if (typeof crypto !== 'undefined') {
-    if ('randomUUID' in crypto) {
-      return crypto.randomUUID();
+  if (typeof window !== 'undefined' && window.crypto) {
+    const webCrypto = window.crypto as Crypto;
+    if (typeof webCrypto.randomUUID === 'function') {
+      return webCrypto.randomUUID();
     }
     const array = new Uint8Array(16);
-    crypto.getRandomValues(array);
+    webCrypto.getRandomValues(array);
     array[6] = (array[6] & 0x0f) | 0x40; // version 4
     array[8] = (array[8] & 0x3f) | 0x80; // variant
     const hex = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
@@ -131,7 +160,7 @@ const generateLocalId = () => {
 export const storage = {
   // Expenses
   async getExpenses(): Promise<Expense[]> {
-    const client = getClient();
+    const client = await getClient();
     if (client) {
       try {
         const { data, error } = await client
@@ -155,7 +184,7 @@ export const storage = {
   },
 
   async saveExpense(payload: NewExpenseInput): Promise<Expense> {
-    const client = getClient();
+    const client = await getClient();
 
     if (client) {
       try {
@@ -186,7 +215,7 @@ export const storage = {
   },
 
   async deleteExpense(id: string): Promise<void> {
-    const client = getClient();
+    const client = await getClient();
     if (client) {
       try {
         const { error } = await client.from('expenses').delete().eq('id', id);
@@ -201,7 +230,7 @@ export const storage = {
 
   // Income
   async getIncome(): Promise<Income[]> {
-    const client = getClient();
+    const client = await getClient();
     if (client) {
       try {
         const { data, error } = await client
@@ -225,7 +254,7 @@ export const storage = {
   },
 
   async saveIncome(payload: NewIncomeInput): Promise<Income> {
-    const client = getClient();
+    const client = await getClient();
 
     if (client) {
       try {
@@ -256,7 +285,7 @@ export const storage = {
   },
 
   async deleteIncome(id: string): Promise<void> {
-    const client = getClient();
+    const client = await getClient();
     if (client) {
       try {
         const { error } = await client.from('income').delete().eq('id', id);
@@ -271,7 +300,7 @@ export const storage = {
 
   // Debts
   async getDebts(): Promise<Debt[]> {
-    const client = getClient();
+    const client = await getClient();
     if (client) {
       try {
         const { data, error } = await client
@@ -295,7 +324,7 @@ export const storage = {
   },
 
   async saveDebt(payload: NewDebtInput): Promise<Debt> {
-    const client = getClient();
+    const client = await getClient();
 
     if (client) {
       try {
@@ -333,7 +362,7 @@ export const storage = {
   },
 
   async updateDebt(id: string, updates: Partial<Debt>): Promise<void> {
-    const client = getClient();
+    const client = await getClient();
     const supabasePayload: Record<string, unknown> = {};
 
     if (updates.name !== undefined) supabasePayload.name = updates.name;
@@ -354,7 +383,7 @@ export const storage = {
   },
 
   async deleteDebt(id: string): Promise<void> {
-    const client = getClient();
+    const client = await getClient();
     if (client) {
       try {
         const { error } = await client.from('debts').delete().eq('id', id);
