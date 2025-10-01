@@ -129,9 +129,9 @@ export default function ExpensesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 text-slate-100 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 text-slate-100 pb-20 sm:pb-24">
       {/* Header */}
-      <div className="bg-gradient-to-br from-slate-950 via-amber-950 to-rose-950 text-white px-6 lg:px-12 pt-10 pb-12 rounded-b-[2.5rem] shadow-2xl border-b border-slate-800/60">
+      <div className="bg-gradient-to-br from-slate-950 via-amber-950 to-rose-950 text-white px-4 sm:px-6 lg:px-12 pt-10 pb-12 rounded-b-[3rem] shadow-2xl border-b border-slate-800/60">
         <div className="max-w-5xl mx-auto">
           <h1 className="text-2xl font-bold mb-2">Expenses</h1>
           <div className="flex items-center gap-2">
@@ -141,17 +141,17 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 lg:px-12 -mt-8 pb-16">
-        <div className="mb-8 grid gap-4 lg:gap-6 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-5 lg:p-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-12 -mt-8 pb-12 sm:pb-16">
+        <div className="mb-6 sm:mb-8 grid gap-4 lg:gap-6 sm:grid-cols-3">
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">Today&apos;s spend</p>
             <p className="mt-1 text-2xl font-semibold text-amber-200">¥{todayTotal.toLocaleString()}</p>
           </div>
-          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-5 lg:p-6">
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">This month</p>
             <p className="mt-1 text-2xl font-semibold text-amber-200">¥{monthTotal.toLocaleString()}</p>
           </div>
-          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-5 lg:p-6">
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">Daily average</p>
             <p className="mt-1 text-2xl font-semibold text-amber-200">¥{Math.round(averageSpend).toLocaleString()}</p>
           </div>
@@ -164,7 +164,7 @@ export default function ExpensesPage() {
         )}
 
         {/* Add Expense Form */}
-        <form onSubmit={handleSubmit} className="bg-slate-900/80 rounded-2xl shadow-xl p-6 sm:p-8 mb-8 border border-slate-800/80">
+        <form onSubmit={handleSubmit} className="bg-slate-900/80 rounded-2xl shadow-xl p-5 sm:p-7 mb-8 border border-slate-800/80">
           <h2 className="text-lg font-bold text-slate-100 mb-5 flex items-center gap-3">
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/30 text-amber-200 shadow-md">
               <PlusCircle size={18} className="text-amber-100" />
@@ -251,7 +251,7 @@ export default function ExpensesPage() {
           </div>
         </form>
 
-        <div className="mb-8 flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-8 flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/80 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-slate-300">
             <Filter size={16} />
             <span className="text-sm font-semibold">Filter expenses</span>
@@ -289,14 +289,14 @@ export default function ExpensesPage() {
         </div>
 
         {/* Expenses List */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
             <Calendar size={20} className="text-amber-200" />
             Recent Expenses
           </h2>
           
           {isLoading ? (
-            <div className="bg-slate-900/60 rounded-2xl border border-slate-800/70 p-10 text-center text-slate-300">
+            <div className="bg-slate-900/60 rounded-2xl border border-slate-800/70 p-8 sm:p-10 text-center text-slate-300">
               Fetching your expenses...
             </div>
           ) : filteredExpenses.length === 0 ? (
@@ -307,7 +307,7 @@ export default function ExpensesPage() {
             </div>
           ) : (
             filteredExpenses.map(expense => (
-              <div key={expense.id} className="bg-slate-900/70 rounded-2xl shadow-md p-5 border border-slate-800/80 hover:shadow-lg transition-all">
+              <div key={expense.id} className="bg-slate-900/70 rounded-2xl shadow-md p-4 sm:p-5 border border-slate-800/80 hover:shadow-lg transition-all">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">

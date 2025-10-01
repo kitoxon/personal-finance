@@ -107,9 +107,9 @@ export default function IncomePage() {
   }, [incomes]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-slate-100 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-slate-100 pb-20 sm:pb-24">
       {/* Header */}
-      <div className="bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-950 text-white px-6 lg:px-12 pt-10 pb-12 rounded-b-[3rem] shadow-2xl border-b border-slate-800/60">
+      <div className="bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-950 text-white px-4 sm:px-6 lg:px-12 pt-10 pb-12 rounded-b-[3rem] shadow-2xl border-b border-slate-800/60">
         <div className="max-w-5xl mx-auto">
           <h1 className="text-2xl font-bold mb-4">Income</h1>
           <div className="flex items-center gap-2 text-sm sm:text-base">
@@ -119,17 +119,17 @@ export default function IncomePage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 lg:px-12 -mt-8 pb-16">
-        <div className="mb-8 grid gap-4 lg:gap-6 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-5 lg:p-6">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-12 -mt-8 pb-12 sm:pb-16">
+        <div className="mb-6 sm:mb-8 grid gap-4 lg:gap-6 sm:grid-cols-3">
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">This month</p>
             <p className="mt-1 text-2xl font-semibold text-emerald-200">¥{currentMonthTotal.toLocaleString()}</p>
           </div>
-          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-5 lg:p-6">
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">Year to date</p>
             <p className="mt-1 text-2xl font-semibold text-emerald-200">¥{annualTotal.toLocaleString()}</p>
           </div>
-          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-5 lg:p-6">
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">Entries logged</p>
             <p className="mt-1 text-2xl font-semibold text-emerald-200">{incomes.length}</p>
           </div>
@@ -142,7 +142,7 @@ export default function IncomePage() {
         )}
 
         {/* Add Income Form */}
-        <form onSubmit={handleSubmit} className="bg-slate-900/80 rounded-2xl shadow-xl p-6 sm:p-8 mb-8 border border-slate-800/80">
+        <form onSubmit={handleSubmit} className="bg-slate-900/80 rounded-2xl shadow-xl p-5 sm:p-7 mb-8 border border-slate-800/80">
           <h2 className="text-lg font-bold text-slate-100 mb-5 flex items-center gap-3">
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/30 text-emerald-200 shadow-md">
               <PlusCircle size={18} className="text-emerald-100" />
@@ -202,7 +202,7 @@ export default function IncomePage() {
           </div>
         </form>
 
-        <div className="mb-8 flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-8 flex flex-col gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/80 p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-slate-300">
             <Filter size={16} />
             <span className="text-sm font-semibold">Review income</span>
@@ -230,14 +230,14 @@ export default function IncomePage() {
         </div>
 
         {/* Income List */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
             <TrendingUp size={20} className="text-emerald-200" />
             Income History
           </h2>
           
           {isLoading ? (
-            <div className="bg-slate-900/60 rounded-2xl border border-slate-800/70 p-12 text-center text-slate-300">
+            <div className="bg-slate-900/60 rounded-2xl border border-slate-800/70 p-9 sm:p-12 text-center text-slate-300">
               Fetching your income records...
             </div>
           ) : filteredIncome.length === 0 ? (
@@ -248,7 +248,7 @@ export default function IncomePage() {
             </div>
           ) : (
             filteredIncome.map(income => (
-              <div key={income.id} className="bg-slate-900/70 rounded-2xl shadow-md p-6 lg:p-7 border border-slate-800/80 hover:shadow-lg transition-all">
+              <div key={income.id} className="bg-slate-900/70 rounded-2xl shadow-md p-5 sm:p-6 lg:p-7 border border-slate-800/80 hover:shadow-lg transition-all">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">

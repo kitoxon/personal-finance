@@ -98,7 +98,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 pb-24">
       {/* Header */}
-      <div className="bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-950 text-white px-6 lg:px-12 pt-10 pb-14 rounded-b-[3rem] shadow-2xl border-b border-slate-800/60">
+      <div className="bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-950 text-white px-4 sm:px-6 lg:px-12 pt-10 pb-14 rounded-b-[3rem] shadow-2xl border-b border-slate-800/60">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-10">
             <div>
@@ -111,7 +111,7 @@ export default function Dashboard() {
           </div>
           
           {/* Balance Card */}
-          <div className="bg-slate-900/70 backdrop-blur-lg rounded-[2.25rem] p-6 sm:p-8 border border-slate-800/80 shadow-2xl">
+          <div className="bg-slate-900/70 backdrop-blur-lg rounded-[2.25rem] p-5 sm:p-7 lg:p-8 border border-slate-800/80 shadow-2xl">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-slate-300 text-sm font-medium mb-1">Current Balance</p>
@@ -135,7 +135,7 @@ export default function Dashboard() {
                 ? '🎉 Excellent progress. Keep allocating a portion of this surplus to future goals.'
                 : '⚠️ Spending outpaced income. Review expenses below and adjust upcoming payments.'}
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-5 flex flex-wrap gap-2.5 sm:gap-3">
               <Link
                 href="/expenses"
                 className="inline-flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/80"
@@ -163,7 +163,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="max-w-5xl mx-auto px-6 lg:px-12 -mt-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-12 -mt-10">
         {error && (
           <div className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
             {error}
@@ -180,9 +180,9 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-7 xl:gap-8 mb-8">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-7 xl:gap-8 mb-8">
           {/* Income Card */}
-          <div className="bg-slate-900/80 rounded-2xl p-6 lg:p-7 shadow-lg border border-slate-800/80">
+          <div className="bg-slate-900/80 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-lg border border-slate-800/80">
             <div className="flex items-center justify-between mb-3">
               <div className="w-10 h-10 bg-emerald-500/80 rounded-xl flex items-center justify-center shadow-md">
                 <ArrowUpRight className="text-slate-950" size={20} />
@@ -196,7 +196,7 @@ export default function Dashboard() {
           </div>
 
           {/* Expenses Card */}
-          <div className="bg-slate-900/80 rounded-2xl p-6 lg:p-7 shadow-lg border border-slate-800/80">
+          <div className="bg-slate-900/80 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-lg border border-slate-800/80">
             <div className="flex items-center justify-between mb-3">
               <div className="w-10 h-10 bg-rose-500/80 rounded-xl flex items-center justify-center shadow-md">
                 <ArrowDownRight className="text-slate-950" size={20} />
@@ -211,9 +211,9 @@ export default function Dashboard() {
         </div>
 
         {/* Today & Debts */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-5 lg:space-y-6">
           {/* Today's Expenses */}
-          <div className="bg-slate-900/80 rounded-2xl p-6 lg:p-7 shadow-lg border border-slate-800/80 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="bg-slate-900/80 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-lg border border-slate-800/80 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-indigo-500/80 rounded-xl flex items-center justify-center shadow-md">
                 <Calendar className="text-slate-950" size={22} />
@@ -226,7 +226,7 @@ export default function Dashboard() {
           </div>
 
           {/* Unpaid Debts */}
-          <div className="bg-slate-900/80 rounded-2xl p-6 lg:p-7 shadow-lg border border-slate-800/80 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="bg-slate-900/80 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-lg border border-slate-800/80 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-amber-500/80 rounded-xl flex items-center justify-center shadow-md">
                 <CreditCard className="text-slate-950" size={22} />
@@ -240,7 +240,7 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Tip */}
-        <div className="mt-8 bg-slate-900/80 rounded-2xl p-6 lg:p-7 border border-slate-800/80">
+        <div className="mt-7 sm:mt-8 bg-slate-900/80 rounded-2xl p-5 sm:p-6 lg:p-7 border border-slate-800/80">
           <div className="flex items-start gap-3">
             <span className="text-2xl">💡</span>
             <div>
@@ -267,7 +267,7 @@ export default function Dashboard() {
         </div>
 
         {recentExpenses.length > 0 && !isLoading && (
-          <div className="mt-8 rounded-2xl border border-slate-800/80 bg-slate-900/80 p-6 lg:p-7">
+          <div className="mt-7 sm:mt-8 rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 sm:p-6 lg:p-7">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-slate-100">Recent Expenses</h3>
