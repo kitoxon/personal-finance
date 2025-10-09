@@ -5,6 +5,7 @@ import ThemeColorUpdater from "@/components/ThemeColorUpdater";
 import AppProviders from "@/components/AppProviders";
 import GlobalHeader from "@/components/GlobalHeader";
 import Navigation from "@/components/Navigation";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -29,11 +30,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Finance Tracker" />
       </head>
       <body className={`${inter.className} bg-slate-950 text-slate-100 antialiased`}>
         <AppProviders>
+          <ServiceWorkerRegistration />
           <ThemeColorUpdater />
           <div className="relative flex min-h-screen flex-col">
             <GlobalHeader />

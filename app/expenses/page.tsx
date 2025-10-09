@@ -218,18 +218,31 @@ export default function ExpensesPage() {
     }
 
     try {
+      // Save the values before clearing the form
+      const savedAmount = parseFloat(amount);
+      const savedCategory = category;
+      
       await saveExpenseMutation.mutateAsync({
-        amount: parseFloat(amount),
-        category,
+        amount: savedAmount,
+        category: savedCategory,
         description,
         date,
       });
+      
+      // Close form first
       if (isFormSheetOpen) {
         closeFormSheet();
       }
-      const notifSettings = JSON.parse(localStorage.getItem('notificationSettings') || '{"expenseAdded":true}');
+      
+      // Then send notification with saved values
+      const notifSettings = JSON.parse(
+        localStorage.getItem('notificationSettings') || '{"expenseAdded":true}'
+      );
       if (notifSettings.expenseAdded) {
-        await notifications.notifyExpenseAdded(parseFloat(amount), category);
+        // Use setTimeout to ensure it happens after state updates
+        setTimeout(() => {
+          notifications.notifyExpenseAdded(savedAmount, savedCategory);
+        }, 100);
       }
     } catch {
       setFormError('We could not save that expense. Please try again.');

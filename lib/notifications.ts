@@ -5,6 +5,8 @@ export interface NotificationOptions {
   badge?: string;
   tag?: string;
   requireInteraction?: boolean;
+  vibrate?: number[];
+  data?: any;
 }
 
 export const notifications = {
@@ -29,7 +31,21 @@ export const notifications = {
     return permission;
   },
 
-  // Show a notification
+  // Get service worker registration
+  async getRegistration(): Promise<ServiceWorkerRegistration | null> {
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        return registration;
+      } catch (error) {
+        console.error('Failed to get service worker registration:', error);
+        return null;
+      }
+    }
+    return null;
+  },
+
+  // Show a notification (works on both desktop and mobile)
   async show(options: NotificationOptions): Promise<void> {
     if (!this.isSupported()) {
       console.warn('Notifications not supported');
@@ -51,32 +67,56 @@ export const notifications = {
       }
     }
 
-    // Try to use service worker notification first
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      const registration = await navigator.serviceWorker.ready;
-      await registration.showNotification(options.title, {
-        body: options.body,
-        icon: options.icon || '/icon-192x192.png',
-        badge: options.badge || '/icon-192x192.png',
-        tag: options.tag,
-        requireInteraction: options.requireInteraction || false,
-      });
+    const notificationOptions: NotificationOptions & { actions?: any[] } = {
+      title: options.title,
+      body: options.body,
+      icon: options.icon || '/icon-192x192.png',
+      badge: options.badge || '/icon-192x192.png',
+      tag: options.tag || 'default',
+      requireInteraction: options.requireInteraction || false,
+      vibrate: options.vibrate || [200, 100, 200],
+      data: options.data || {},
+    };
+
+    // Try to use service worker notification (required for mobile)
+    const registration = await this.getRegistration();
+    
+    if (registration) {
+      try {
+        await registration.showNotification(options.title, notificationOptions);
+        console.log('✅ Notification shown via Service Worker');
+      } catch (error) {
+        console.error('Failed to show notification via service worker:', error);
+        // Fallback to regular notification
+        this.showFallback(options.title, notificationOptions);
+      }
     } else {
       // Fallback to regular notification
-      new Notification(options.title, {
+      this.showFallback(options.title, notificationOptions);
+    }
+  },
+
+  // Fallback notification (for desktop browsers)
+  showFallback(title: string, options: NotificationOptions): void {
+    try {
+      new Notification(title, {
         body: options.body,
-        icon: options.icon || '/icon-192x192.png',
+        icon: options.icon,
+        tag: options.tag,
       });
+      console.log('✅ Notification shown via Fallback API');
+    } catch (error) {
+      console.error('Failed to show fallback notification:', error);
     }
   },
 
   // Schedule a notification (for debts due soon)
   async scheduleDebtReminder(debtName: string, amount: number, daysUntilDue: number): Promise<void> {
     const messages = [
-      { days: 0, message: '⚠️ Due today!' },
-      { days: 1, message: '📅 Due tomorrow!' },
-      { days: 3, message: '📅 Due in 3 days' },
-      { days: 7, message: '📅 Due in 1 week' },
+      { days: 0, message: '⚠️ Due today!', urgent: true },
+      { days: 1, message: '📅 Due tomorrow!', urgent: true },
+      { days: 3, message: '📅 Due in 3 days', urgent: false },
+      { days: 7, message: '📅 Due in 1 week', urgent: false },
     ];
 
     const matchedMessage = messages.find(m => m.days === daysUntilDue);
@@ -86,7 +126,8 @@ export const notifications = {
         title: `${debtName} ${matchedMessage.message}`,
         body: `Amount: ¥${amount.toLocaleString()}`,
         tag: `debt-${debtName}`,
-        requireInteraction: daysUntilDue === 0,
+        requireInteraction: matchedMessage.urgent,
+        vibrate: matchedMessage.urgent ? [200, 100, 200, 100, 200] : [200, 100, 200],
       });
     }
   },
@@ -97,6 +138,7 @@ export const notifications = {
       title: '✅ Expense Added',
       body: `¥${amount.toLocaleString()} - ${category}`,
       tag: 'expense-added',
+      vibrate: [100, 50, 100],
     });
   },
 
@@ -108,12 +150,14 @@ export const notifications = {
         body: `You've spent ¥${spent.toLocaleString()} today (limit: ¥${limit.toLocaleString()})`,
         tag: 'daily-limit',
         requireInteraction: true,
+        vibrate: [200, 100, 200, 100, 200, 100, 200],
       });
     } else if (spent >= limit * 0.8) {
       await this.show({
         title: '📊 Approaching Daily Limit',
         body: `You've spent ¥${spent.toLocaleString()} of your ¥${limit.toLocaleString()} daily budget`,
         tag: 'daily-warning',
+        vibrate: [200, 100, 200],
       });
     }
   },
@@ -126,7 +170,19 @@ export const notifications = {
         body: `You've spent ¥${(monthlySpent - monthlyIncome).toLocaleString()} more than your income this month`,
         tag: 'budget-exceeded',
         requireInteraction: true,
+        vibrate: [300, 100, 300, 100, 300],
       });
     }
+  },
+
+  // Test notification with vibration
+  async testNotification(): Promise<void> {
+    await this.show({
+      title: '🔔 Test Notification',
+      body: 'Notifications are working perfectly! 🎉',
+      tag: 'test',
+      vibrate: [200, 100, 200, 100, 400],
+      requireInteraction: false,
+    });
   },
 };
