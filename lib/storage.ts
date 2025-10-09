@@ -55,7 +55,73 @@ export interface Debt {
   isPaid: boolean;
   createdAt?: string;
 }
+type SavingsGoalRow = {
+  id: string;
+  name: string;
+  target_amount: number | string;
+  current_amount: number | string;
+  priority: number;
+  color: string;
+  icon?: string | null;
+  deadline?: string | null;
+  is_completed: boolean;
+  created_at?: string | null;
+};
 
+type OverflowAllocationRow = {
+  id: string;
+  amount: number | string;
+  goal_id: string;
+  date: string;
+  source: string;
+  note?: string | null;
+  created_at?: string | null;
+};
+
+type BudgetSettingsRow = {
+  id: string;
+  user_id?: string | null;
+  monthly_income: number | string;
+  fixed_expenses: number | string;
+  savings_target: number;
+  overflow_day: number;
+  auto_allocate: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+export interface SavingsGoal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  priority: number; // 1 = highest priority
+  color: string;
+  icon?: string;
+  deadline?: string;
+  isCompleted: boolean;
+  createdAt?: string;
+}
+
+export interface OverflowAllocation {
+  id: string;
+  amount: number;
+  goalId: string;
+  date: string;
+  source: 'manual' | 'auto-overflow';
+  note?: string;
+  createdAt?: string;
+}
+
+export interface BudgetSettings {
+  id?: string;
+  monthlyIncome: number;
+  fixedExpenses: number;
+  savingsTarget: number;
+  overflowDay: number;
+  autoAllocate: boolean;
+}
+export type NewSavingsGoalInput = Omit<SavingsGoal, 'id' | 'createdAt'>;
+export type NewOverflowAllocationInput = Omit<OverflowAllocation, 'id' | 'createdAt'>;
 export type NewExpenseInput = Omit<Expense, 'id' | 'createdAt'>;
 export type NewIncomeInput = Omit<Income, 'id' | 'createdAt'>;
 export type NewDebtInput = Omit<Debt, 'id' | 'createdAt'>;
@@ -64,6 +130,9 @@ const LOCAL_KEYS = {
   expenses: 'expenses',
   income: 'income',
   debts: 'debts',
+  savingsGoals: 'savingsGoals',
+  overflowAllocations: 'overflowAllocations',
+  budgetSettings: 'budgetSettings',
 } as const;
 
 const isBrowser = () => typeof window !== 'undefined';
@@ -96,7 +165,37 @@ const getClient = async (): Promise<SupabaseClient | null> => {
     return null;
   }
 };
+const mapSavingsGoalRow = (row: SavingsGoalRow): SavingsGoal => ({
+  id: row.id,
+  name: row.name,
+  targetAmount: Number(row.target_amount),
+  currentAmount: Number(row.current_amount),
+  priority: row.priority,
+  color: row.color,
+  icon: row.icon ?? undefined,
+  deadline: row.deadline ?? undefined,
+  isCompleted: Boolean(row.is_completed),
+  createdAt: row.created_at ?? undefined,
+});
 
+const mapOverflowAllocationRow = (row: OverflowAllocationRow): OverflowAllocation => ({
+  id: row.id,
+  amount: Number(row.amount),
+  goalId: row.goal_id,
+  date: row.date,
+  source: row.source as 'manual' | 'auto-overflow',
+  note: row.note ?? undefined,
+  createdAt: row.created_at ?? undefined,
+});
+
+const mapBudgetSettingsRow = (row: BudgetSettingsRow): BudgetSettings => ({
+  id: row.id,
+  monthlyIncome: Number(row.monthly_income),
+  fixedExpenses: Number(row.fixed_expenses),
+  savingsTarget: row.savings_target,
+  overflowDay: row.overflow_day,
+  autoAllocate: Boolean(row.auto_allocate),
+});
 const mapExpenseRow = (row: ExpenseRow): Expense => ({
   id: row.id,
   amount: Number(row.amount),
@@ -404,5 +503,296 @@ export const storage = {
     }
 
     removeLocalRecord(LOCAL_KEYS.debts, id);
+  },
+
+  // In the storage object:
+
+  // Savings Goals
+  async getSavingsGoals(): Promise<SavingsGoal[]> {
+    const client = await getClient();
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('savings_goals')
+          .select('*')
+          .order('priority', { ascending: true });
+
+        if (error) throw error;
+
+        if (data) {
+          const mapped = data.map(mapSavingsGoalRow);
+          writeLocal(LOCAL_KEYS.savingsGoals, mapped);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to fetch savings goals from Supabase, using localStorage data.', error);
+      }
+    }
+
+    return readLocal<SavingsGoal>(LOCAL_KEYS.savingsGoals);
+  },
+
+  async saveSavingsGoal(payload: NewSavingsGoalInput): Promise<SavingsGoal> {
+    const client = await getClient();
+
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('savings_goals')
+          .insert([
+            {
+              name: payload.name,
+              target_amount: payload.targetAmount,
+              current_amount: payload.currentAmount,
+              priority: payload.priority,
+              color: payload.color,
+              icon: payload.icon ?? null,
+              deadline: payload.deadline ?? null,
+              is_completed: payload.isCompleted,
+            },
+          ])
+          .select('*')
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          const mapped = mapSavingsGoalRow(data);
+          syncLocalAfterInsert(LOCAL_KEYS.savingsGoals, mapped);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to save savings goal to Supabase, storing locally instead.', error);
+      }
+    }
+
+    const fallback: SavingsGoal = {
+      id: generateLocalId(),
+      ...payload,
+      createdAt: new Date().toISOString(),
+    };
+    syncLocalAfterInsert(LOCAL_KEYS.savingsGoals, fallback);
+    return fallback;
+  },
+
+  async updateSavingsGoal(id: string, updates: Partial<SavingsGoal>): Promise<void> {
+    const client = await getClient();
+    const supabasePayload: Record<string, unknown> = {};
+
+    if (updates.name !== undefined) supabasePayload.name = updates.name;
+    if (updates.targetAmount !== undefined) supabasePayload.target_amount = updates.targetAmount;
+    if (updates.currentAmount !== undefined) supabasePayload.current_amount = updates.currentAmount;
+    if (updates.priority !== undefined) supabasePayload.priority = updates.priority;
+    if (updates.color !== undefined) supabasePayload.color = updates.color;
+    if (updates.icon !== undefined) supabasePayload.icon = updates.icon ?? null;
+    if (updates.deadline !== undefined) supabasePayload.deadline = updates.deadline ?? null;
+    if (updates.isCompleted !== undefined) supabasePayload.is_completed = updates.isCompleted;
+
+    if (client && Object.keys(supabasePayload).length > 0) {
+      try {
+        const { error } = await client.from('savings_goals').update(supabasePayload).eq('id', id);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Failed to update savings goal in Supabase, updating local copy only.', error);
+      }
+    }
+
+    updateLocalRecord<SavingsGoal>(LOCAL_KEYS.savingsGoals, id, goal => ({ ...goal, ...updates }));
+  },
+  async deleteSavingsGoal(id: string): Promise<void> {
+    const client = await getClient();
+    if (client) {
+      try {
+        const { error } = await client.from('savings_goals').delete().eq('id', id);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Failed to delete savings goal from Supabase, removing local copy only.', error);
+      }
+    }
+
+    removeLocalRecord(LOCAL_KEYS.savingsGoals, id);
+  },
+
+  // Overflow Allocations
+  async getOverflowAllocations(): Promise<OverflowAllocation[]> {
+    const client = await getClient();
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('overflow_allocations')
+          .select('*')
+          .order('date', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
+          const mapped = data.map(mapOverflowAllocationRow);
+          writeLocal(LOCAL_KEYS.overflowAllocations, mapped);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to fetch overflow allocations from Supabase, using localStorage data.', error);
+      }
+    }
+
+    return readLocal<OverflowAllocation>(LOCAL_KEYS.overflowAllocations);
+  },
+
+  async saveOverflowAllocation(payload: NewOverflowAllocationInput): Promise<OverflowAllocation> {
+    const client = await getClient();
+
+    // First, save the allocation
+    let allocation: OverflowAllocation;
+
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('overflow_allocations')
+          .insert([
+            {
+              amount: payload.amount,
+              goal_id: payload.goalId,
+              date: payload.date,
+              source: payload.source,
+              note: payload.note ?? null,
+            },
+          ])
+          .select('*')
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          allocation = mapOverflowAllocationRow(data);
+          syncLocalAfterInsert(LOCAL_KEYS.overflowAllocations, allocation);
+        } else {
+          throw new Error('No data returned');
+        }
+      } catch (error) {
+        console.error('Failed to save overflow allocation to Supabase, storing locally instead.', error);
+        allocation = {
+          id: generateLocalId(),
+          ...payload,
+          createdAt: new Date().toISOString(),
+        };
+        syncLocalAfterInsert(LOCAL_KEYS.overflowAllocations, allocation);
+      }
+    } else {
+      allocation = {
+        id: generateLocalId(),
+        ...payload,
+        createdAt: new Date().toISOString(),
+      };
+      syncLocalAfterInsert(LOCAL_KEYS.overflowAllocations, allocation);
+    }
+
+    // Update the goal's current amount
+    const goals = await this.getSavingsGoals();
+    const goal = goals.find(g => g.id === payload.goalId);
+    
+    if (goal) {
+      const newAmount = goal.currentAmount + payload.amount;
+      const isCompleted = newAmount >= goal.targetAmount;
+      
+      await this.updateSavingsGoal(goal.id, {
+        currentAmount: newAmount,
+        isCompleted,
+      });
+    }
+
+    return allocation;
+  },
+
+  async deleteOverflowAllocation(id: string): Promise<void> {
+    const client = await getClient();
+    if (client) {
+      try {
+        const { error } = await client.from('overflow_allocations').delete().eq('id', id);
+        if (error) throw error;
+      } catch (error) {
+        console.error('Failed to delete overflow allocation from Supabase, removing local copy only.', error);
+      }
+    }
+
+    removeLocalRecord(LOCAL_KEYS.overflowAllocations, id);
+  },
+
+  // Budget Settings
+  async getBudgetSettings(): Promise<BudgetSettings> {
+    const client = await getClient();
+    const defaultSettings: BudgetSettings = {
+      monthlyIncome: 0,
+      fixedExpenses: 0,
+      savingsTarget: 20,
+      overflowDay: 25,
+      autoAllocate: true,
+    };
+
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('budget_settings')
+          .select('*')
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (data) {
+          const mapped = mapBudgetSettingsRow(data);
+          writeLocal(LOCAL_KEYS.budgetSettings, [mapped]);
+          return mapped;
+        }
+      } catch (error) {
+        console.error('Failed to fetch budget settings from Supabase, using localStorage data.', error);
+      }
+    }
+
+    const localSettings = readLocal<BudgetSettings>(LOCAL_KEYS.budgetSettings);
+    return localSettings.length > 0 ? localSettings[0] : defaultSettings;
+  },
+
+  async saveBudgetSettings(settings: BudgetSettings): Promise<void> {
+    const client = await getClient();
+
+    if (client) {
+      try {
+        // Check if settings exist
+        const { data: existing } = await client
+          .from('budget_settings')
+          .select('id')
+          .limit(1)
+          .maybeSingle();
+
+        const payload = {
+          monthly_income: settings.monthlyIncome,
+          fixed_expenses: settings.fixedExpenses,
+          savings_target: settings.savingsTarget,
+          overflow_day: settings.overflowDay,
+          auto_allocate: settings.autoAllocate,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (existing) {
+          // Update existing
+          const { error } = await client
+            .from('budget_settings')
+            .update(payload)
+            .eq('id', existing.id);
+
+          if (error) throw error;
+        } else {
+          // Insert new
+          const { error } = await client.from('budget_settings').insert([payload]);
+
+          if (error) throw error;
+        }
+
+        writeLocal(LOCAL_KEYS.budgetSettings, [settings]);
+      } catch (error) {
+        console.error('Failed to save budget settings to Supabase, storing locally instead.', error);
+        writeLocal(LOCAL_KEYS.budgetSettings, [settings]);
+      }
+    } else {
+      writeLocal(LOCAL_KEYS.budgetSettings, [settings]);
+    }
   },
 };

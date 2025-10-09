@@ -5,11 +5,16 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
 import { storage, Expense } from '@/lib/storage';
-import { Wallet, CreditCard, Calendar, ArrowUpRight, ArrowDownRight, PlusCircle, RefreshCw } from 'lucide-react';
+import { Wallet, CreditCard, Calendar, ArrowUpRight, ArrowDownRight, PlusCircle, RefreshCw, Zap } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isWithinInterval, isSameDay, subMonths } from 'date-fns';
 import { formatDateForDisplay, parseAppDate } from '@/lib/datetime';
-
+import NotificationSettings from '@/components/NotificationSettings';
+import { useDebtReminders } from '@/hooks/useDebtReminders';
+import { calculateMonthlyOverflow } from '@/lib/overflow';
+import { useOverflowNotifications } from '@/hooks/useOverflowNotifications';
 export default function Dashboard() {
+  useOverflowNotifications();
+  useDebtReminders();
   const expensesQuery = useQuery({
     queryKey: ['expenses'],
     queryFn: () => storage.getExpenses(),
@@ -24,7 +29,7 @@ export default function Dashboard() {
     queryKey: ['debts'],
     queryFn: () => storage.getDebts(),
   });
-
+  
   const expenses = useMemo(() => expensesQuery.data ?? [], [expensesQuery.data]);
   const income = useMemo(() => incomeQuery.data ?? [], [incomeQuery.data]);
   const debts = useMemo(() => debtsQuery.data ?? [], [debtsQuery.data]);
@@ -225,7 +230,22 @@ export default function Dashboard() {
   const balance = monthlyIncome - monthlyExpenses - totalDebts;
   const balanceMessage = balance > 0 ? 'Surplus' : balance === 0 ? 'Balanced' : 'Deficit';
 
-  
+  const { data: settings } = useQuery({
+    queryKey: ['budgetSettings'],
+    queryFn: () => storage.getBudgetSettings(),
+  });
+
+  const { data: goals = [] } = useQuery({
+    queryKey: ['savingsGoals'],
+    queryFn: () => storage.getSavingsGoals(),
+  });
+
+  // Calculate overflow
+  const overflowCalc = useMemo(() => {
+    if (!settings) return null;
+    // You'll need to get expenses, income, debts from queries
+    return calculateMonthlyOverflow(expenses, income, debts, goals, settings);
+  }, [expenses, income, debts, goals, settings]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 pb-20 lg:pb-16">
@@ -332,6 +352,7 @@ export default function Dashboard() {
             {isFetching || isRefreshing ? 'Refreshing' : 'Refresh data'}
           </button>
         </div>
+        
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-7 xl:gap-8 mb-8">
           {/* Income Card */}
           <div className="bg-slate-900/80 rounded-2xl p-5 sm:p-6 lg:p-7 shadow-lg border border-slate-800/80">
@@ -560,8 +581,33 @@ export default function Dashboard() {
             </ul>
           </div>
         )}
+        <div className="mt-7 sm:mt-8">
+          <NotificationSettings />
+        </div>
+        {overflowCalc && overflowCalc.overflow > 0 && (
+        <Link
+          href="/overflow"
+          className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-5 hover:border-purple-500/40 transition"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Zap className="text-purple-300" size={20} />
+              <span className="text-xs font-semibold uppercase tracking-wide text-purple-200">
+                Cash Overflow
+              </span>
+            </div>
+            <span className="text-xs text-purple-300">→</span>
+          </div>
+          <p className="text-2xl font-bold text-purple-100 mb-1">
+            ¥{overflowCalc.overflow.toLocaleString()}
+          </p>
+          <p className="text-sm text-purple-200/80">
+            Available to allocate to {goals.filter(g => !g.isCompleted).length} savings goals
+          </p>
+        </Link>
+      )}
       </div>
-
+      
     </div>
   );
 }

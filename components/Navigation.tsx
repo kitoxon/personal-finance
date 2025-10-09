@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
-import { Home, PlusCircle, DollarSign, CreditCard } from 'lucide-react';
+import { Home, PlusCircle, DollarSign, CreditCard, Zap } from 'lucide-react';
 
 export const NAV_LINKS = [
   { href: '/', icon: Home, label: 'Home' },
   { href: '/expenses', icon: PlusCircle, label: 'Expenses' },
   { href: '/income', icon: DollarSign, label: 'Income' },
   { href: '/debts', icon: CreditCard, label: 'Debts' },
+  { href: '/overflow', icon: Zap, label: 'Overflow' }
 ] as const;
 
 type NavLinkProps = {

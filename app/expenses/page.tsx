@@ -41,7 +41,7 @@ import {
   formatDateForInput,
   parseAppDate,
 } from '@/lib/datetime';
-
+import { notifications } from '@/lib/notifications';
 const categories = [
   'Food & Dining', 'Drinks', 'Alcohol & Nightlife', 'Transportation', 'Entertainment', 'Utilities', 
   'Communication', 'Healthcare', 'Shopping', 'Other'
@@ -226,6 +226,10 @@ export default function ExpensesPage() {
       });
       if (isFormSheetOpen) {
         closeFormSheet();
+      }
+      const notifSettings = JSON.parse(localStorage.getItem('notificationSettings') || '{"expenseAdded":true}');
+      if (notifSettings.expenseAdded) {
+        await notifications.notifyExpenseAdded(parseFloat(amount), category);
       }
     } catch {
       setFormError('We could not save that expense. Please try again.');
