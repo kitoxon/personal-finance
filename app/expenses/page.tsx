@@ -686,11 +686,68 @@ export default function ExpensesPage() {
         )}
 
         <div className="mt-8 flex flex-col gap-8 lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
-          <aside className="hidden lg:block">
+          <aside className="hidden lg:block h-full">
             <div className="sticky top-32 space-y-4">
               <div className="rounded-2xl border border-slate-800/80 bg-slate-950/70 p-5 shadow-lg">
                 {filterPanel}
               </div>
+              <div className="rounded-2xl border border-emerald-500/20 bg-slate-900/70 p-5 sm:p-6 shadow-lg">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-emerald-300">Upcoming due dates</p>
+                  <h3 className="text-lg font-semibold text-slate-100">Stay ahead of bills</h3>
+                </div>
+                <Link
+                  href="/debts"
+                  className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-100 transition hover:border-emerald-500/60 hover:bg-emerald-500/20"
+                >
+                  Manage debts
+                </Link>
+              </div>
+              {debtsQuery.isLoading ? (
+                <div className="mt-4 space-y-3">
+                  {[0, 1, 2].map(key => (
+                    <div key={key} className="animate-pulse rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
+                      <div className="h-3 w-24 rounded bg-slate-800/60" />
+                      <div className="mt-2 h-4 w-36 rounded bg-slate-800/50" />
+                    </div>
+                  ))}
+                </div>
+              ) : upcomingDebts.length > 0 ? (
+                <ul className="mt-4 space-y-3">
+                  {upcomingDebts.map(debt => {
+                    const dueDate = formatDateForDisplay(debt.dueDate, 'MMM d');
+                    const parsedDue = parseAppDate(debt.dueDate);
+                    const isUrgent =
+                      parsedDue &&
+                      isWithinInterval(parsedDue, {
+                        start: startOfDay(new Date()),
+                        end: endOfWeek(new Date(), { weekStartsOn: 1 }),
+                      });
+                    return (
+                      <li
+                        key={debt.id}
+                        className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${
+                          isUrgent
+                            ? 'border-rose-500/40 bg-rose-500/10 text-rose-100'
+                            : 'border-slate-800/80 bg-slate-950/40 text-slate-200'
+                        }`}
+                      >
+                        <div>
+                          <p className="text-xs uppercase tracking-wider">{dueDate}</p>
+                          <p className="text-sm font-semibold text-slate-100">{debt.name}</p>
+                        </div>
+                        <p className="text-sm font-semibold text-emerald-200">¥{debt.amount.toLocaleString()}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/40 p-5 text-sm text-slate-300">
+                  All caught up—no unpaid debts due soon. Keep logging bills so nothing sneaks up on you.
+                </div>
+              )}
+            </div>
             </div>
           </aside>
 
@@ -1016,63 +1073,7 @@ export default function ExpensesPage() {
               </div>
             </form>
 
-            <div className="rounded-2xl border border-emerald-500/20 bg-slate-900/70 p-5 sm:p-6 shadow-lg">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-emerald-300">Upcoming due dates</p>
-                  <h3 className="text-lg font-semibold text-slate-100">Stay ahead of bills</h3>
-                </div>
-                <Link
-                  href="/debts"
-                  className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-100 transition hover:border-emerald-500/60 hover:bg-emerald-500/20"
-                >
-                  Manage debts
-                </Link>
-              </div>
-              {debtsQuery.isLoading ? (
-                <div className="mt-4 space-y-3">
-                  {[0, 1, 2].map(key => (
-                    <div key={key} className="animate-pulse rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
-                      <div className="h-3 w-24 rounded bg-slate-800/60" />
-                      <div className="mt-2 h-4 w-36 rounded bg-slate-800/50" />
-                    </div>
-                  ))}
-                </div>
-              ) : upcomingDebts.length > 0 ? (
-                <ul className="mt-4 space-y-3">
-                  {upcomingDebts.map(debt => {
-                    const dueDate = formatDateForDisplay(debt.dueDate, 'MMM d');
-                    const parsedDue = parseAppDate(debt.dueDate);
-                    const isUrgent =
-                      parsedDue &&
-                      isWithinInterval(parsedDue, {
-                        start: startOfDay(new Date()),
-                        end: endOfWeek(new Date(), { weekStartsOn: 1 }),
-                      });
-                    return (
-                      <li
-                        key={debt.id}
-                        className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${
-                          isUrgent
-                            ? 'border-rose-500/40 bg-rose-500/10 text-rose-100'
-                            : 'border-slate-800/80 bg-slate-950/40 text-slate-200'
-                        }`}
-                      >
-                        <div>
-                          <p className="text-xs uppercase tracking-wider">{dueDate}</p>
-                          <p className="text-sm font-semibold text-slate-100">{debt.name}</p>
-                        </div>
-                        <p className="text-sm font-semibold text-emerald-200">¥{debt.amount.toLocaleString()}</p>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <div className="mt-4 rounded-xl border border-slate-800/80 bg-slate-950/40 p-5 text-sm text-slate-300">
-                  All caught up—no unpaid debts due soon. Keep logging bills so nothing sneaks up on you.
-                </div>
-              )}
-            </div>
+            
 
             <div className="space-y-4 sm:space-y-6">
               <h2 className="flex items-center gap-2 text-lg font-bold text-slate-100">

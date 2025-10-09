@@ -264,7 +264,7 @@ export default function IncomePage() {
           </div>
         )}
 
-        <div className="mb-8 rounded-2xl border border-slate-800/80 bg-slate-900/80 p-4 sm:p-5 shadow-lg space-y-4 lg:sticky lg:top-28">
+        <div className="mb-8 rounded-2xl border border-slate-800/80 bg-slate-900/80 p-4 sm:p-5 shadow-lg space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-500">Filtered total</p>

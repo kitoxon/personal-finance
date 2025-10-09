@@ -456,6 +456,7 @@ export default function DebtsPage() {
                 <PlusCircle size={16} />
                 Add debt
               </button> */}
+              
               <button
                 type="button"
                 onClick={() => setIsFilterSheetOpen(true)}
