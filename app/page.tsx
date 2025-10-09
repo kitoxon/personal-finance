@@ -417,9 +417,9 @@ export default function Dashboard() {
                           {point.label}
                         </span>
                         <span
-                          className={`text-[11px] font-medium ${net >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}
+                          className={`text-[10px] font-medium ${net >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}
                         >
-                          {`${net >= 0 ? '+' : '-'} ${formatCurrency(Math.abs(net))}`}
+                          {`${net >= 0 ? '+' : '-'}${formatCurrency(Math.abs(net))}`}
                         </span>
                       </div>
                     </div>
