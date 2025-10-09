@@ -2,13 +2,14 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient } from './supabase/browser';
+import { normalizeToIsoString } from './datetime';
 
 type ExpenseRow = {
   id: string;
   amount: number | string;
   category: string;
   description?: string | null;
-  date: string;
+  date?: string | null;
   created_at?: string | null;
 };
 
@@ -101,7 +102,7 @@ const mapExpenseRow = (row: ExpenseRow): Expense => ({
   amount: Number(row.amount),
   category: row.category,
   description: row.description ?? '',
-  date: row.date,
+  date: normalizeToIsoString(row.date ?? row.created_at ?? undefined),
   createdAt: row.created_at ?? undefined,
 });
 
@@ -166,7 +167,7 @@ export const storage = {
         const { data, error } = await client
           .from('expenses')
           .select('*')
-          .order('date', { ascending: false });
+          .order('date', { ascending: true });
 
         if (error) throw error;
 
@@ -180,17 +181,26 @@ export const storage = {
       }
     }
 
-    return readLocal<Expense>(LOCAL_KEYS.expenses);
+    const localExpenses = readLocal<Expense>(LOCAL_KEYS.expenses).map(expense => ({
+      ...expense,
+      date: normalizeToIsoString(expense.date),
+    }));
+    writeLocal(LOCAL_KEYS.expenses, localExpenses);
+    return localExpenses;
   },
 
   async saveExpense(payload: NewExpenseInput): Promise<Expense> {
     const client = await getClient();
+    const normalizedPayload = {
+      ...payload,
+      date: normalizeToIsoString(payload.date),
+    };
 
     if (client) {
       try {
         const { data, error } = await client
           .from('expenses')
-          .insert([{ ...payload, description: payload.description || null }])
+          .insert([{ ...normalizedPayload, description: normalizedPayload.description || null }])
           .select('*')
           .single();
 
@@ -207,7 +217,7 @@ export const storage = {
 
     const fallback: Expense = {
       id: generateLocalId(),
-      ...payload,
+      ...normalizedPayload,
       createdAt: new Date().toISOString(),
     };
     syncLocalAfterInsert(LOCAL_KEYS.expenses, fallback);
