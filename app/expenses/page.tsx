@@ -623,9 +623,9 @@ export default function ExpensesPage() {
           onChange={(event) => setCategoryFilter(event.target.value)}
           className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
         >
-          <option value="all">All categories</option>
+          <option className="bg-slate-950/75 backdrop-blur" value="all">All categories</option>
           {categories.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
+            <option className="bg-slate-950/75 backdrop-blur" key={cat} value={cat}>{cat}</option>
           ))}
         </select>
       </div>
@@ -920,7 +920,7 @@ export default function ExpensesPage() {
                             ? Math.max(14, (entry.average / weekdayBuckets.maxAverage) * 100)
                             : 0;
                         return (
-                          <div key={entry.index} className="flex flex-1 flex-col items-center gap-2">
+                          <div key={entry.index} className="flex flex-1 h-full flex-col items-center gap-2">
                             <div className="flex h-full w-full max-w-[40px] items-end rounded-2xl border border-amber-500/30 bg-slate-950/50 p-0.5">
                               <div
                                 className="w-full rounded-xl bg-gradient-to-t from-amber-500 via-amber-400 to-rose-500 transition-[height]"

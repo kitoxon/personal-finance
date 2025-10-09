@@ -387,7 +387,7 @@ export default function IncomePage() {
                   const height =
                     trendMax > 0 ? Math.max(12, (point.total / trendMax) * 100) : 0;
                   return (
-                    <div key={point.monthKey} className="flex flex-1 flex-col items-center gap-2">
+                    <div key={point.monthKey} className="flex flex-1 h-full flex-col items-center gap-2">
                       <div className="flex h-full w-full max-w-[42px] items-end rounded-2xl border border-emerald-500/40 bg-slate-950/40 p-0.5">
                         <div
                           className="w-full rounded-xl bg-gradient-to-t from-emerald-600 via-emerald-400 to-teal-400 transition-[height]"
