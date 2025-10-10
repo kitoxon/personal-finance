@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
 import { storage, Expense, Debt } from '@/lib/storage';
@@ -133,7 +133,7 @@ export default function ExpensesPage() {
       return bTime - aTime;
     });
   }, [expensesData]);
-
+  const formRef = useRef<HTMLFormElement>(null);
   const saveExpenseMutation = useMutation({
     mutationFn: storage.saveExpense,
     onSuccess: async () => {
@@ -205,10 +205,11 @@ export default function ExpensesPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    if (!isLastFormStep) return;
     setFormError(null);
-
     if (!ensureAmountValid()) {
       return;
     }
@@ -1259,7 +1260,7 @@ export default function ExpensesPage() {
             onClick={closeFormSheet}
           />
           <div className="relative w-full max-h-[82vh] overflow-y-auto rounded-t-3xl border border-amber-500/20 bg-slate-950 p-5 shadow-2xl">
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} ref={formRef} noValidate className="space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-widest text-amber-200">Step {currentFormStepIndex + 1} of {formSteps.length}</p>
@@ -1403,8 +1404,9 @@ export default function ExpensesPage() {
                 )}
                 {isLastFormStep ? (
                   <button
-                    type="submit"
+                    type="button"
                     disabled={saveExpenseMutation.isPending}
+                    onClick={() => formRef.current?.requestSubmit()}
                     className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 shadow-md transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <PlusCircle size={16} />
