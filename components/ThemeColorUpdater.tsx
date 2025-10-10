@@ -20,6 +20,7 @@ export default function ThemeColorUpdater() {
       if (p.startsWith("/expenses")) return "#78350f"; // amber-950
       if (p.startsWith("/income")) return "#064e3b";   // emerald-950
       if (p.startsWith("/debts")) return "#881337";    // rose-950
+      if (p.startsWith("/overflow")) return "#1E0D42"; // indigo-purple night
       return "#000000";
     };
 
