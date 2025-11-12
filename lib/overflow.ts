@@ -94,25 +94,30 @@ export function calculateMonthlyOverflow(
   };
 }
 
-export function getOverflowStatusMessage(calculation: OverflowCalculation): {
+export function getOverflowStatusMessage(
+  calculation: OverflowCalculation,
+  formatCurrency: (value: number) => string = value => `¥${value.toLocaleString()}`
+): {
   type: 'success' | 'warning' | 'danger';
   message: string;
 } {
   if (calculation.overflow > 0) {
     return {
       type: 'success',
-      message: `Great! You have ¥${calculation.overflow.toLocaleString()} to allocate to your savings goals.`,
+      message: `Great! You have ${formatCurrency(calculation.overflow)} to allocate to your savings goals.`,
     };
   } else if (calculation.availableForSavings > 0) {
     return {
       type: 'warning',
-      message: `You have ¥${calculation.availableForSavings.toLocaleString()} available, but it's within your savings target.`,
+      message: `You have ${formatCurrency(
+        calculation.availableForSavings,
+      )} available, but it's within your savings target.`,
     };
   } else {
     const deficit = Math.abs(calculation.availableForSavings);
     return {
       type: 'danger',
-      message: `You're ¥${deficit.toLocaleString()} over budget this month. No overflow available.`,
+      message: `You're ${formatCurrency(deficit)} over budget this month. No overflow available.`,
     };
   }
 }

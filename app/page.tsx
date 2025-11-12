@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
 import { storage, Expense } from '@/lib/storage';
@@ -34,6 +34,9 @@ export default function Dashboard() {
   const income = useMemo(() => incomeQuery.data ?? [], [incomeQuery.data]);
   const debts = useMemo(() => debtsQuery.data ?? [], [debtsQuery.data]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const cashflowTitleId = useId();
+  const cashflowDescId = useId();
+  const cashflowTableId = useId();
   const currentMonthKey = format(new Date(), 'yyyy-MM');
 
   const monthlyExpenses = useMemo(() => {
@@ -135,6 +138,12 @@ export default function Dashboard() {
 
   const trendMax = useMemo(() => {
     return combinedTrend.reduce((max, point) => Math.max(max, point.expense, point.income), 0);
+  }, [combinedTrend]);
+  const trendRangeLabel = useMemo(() => {
+    if (combinedTrend.length === 0) return 'no data available';
+    const first = combinedTrend[0]?.label;
+    const last = combinedTrend.at(-1)?.label;
+    return first && last ? `${first} to ${last}` : 'recent months';
   }, [combinedTrend]);
 
   const latestExpenseTotal = monthlyExpenseTrend.at(-1)?.total ?? 0;
@@ -387,8 +396,14 @@ export default function Dashboard() {
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 sm:p-6 lg:p-7 shadow-lg">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-slate-100">Monthly cashflow</h3>
+                <h3 id={cashflowTitleId} className="text-lg font-semibold text-slate-100">
+                  Monthly cashflow
+                </h3>
                 <p className="text-sm text-slate-400">Income vs spending across the past six months.</p>
+                <p id={cashflowDescId} className="sr-only">
+                  Bar chart compares monthly income and expenses from {trendRangeLabel}. Detailed values follow in the
+                  table below.
+                </p>
               </div>
               <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 px-3 py-2 text-right">
                 <p className="text-[11px] uppercase tracking-wide text-slate-500">
@@ -414,7 +429,13 @@ export default function Dashboard() {
                   Spending · {expenseDeltaLabel} vs last month
                 </span>
               </div>
-              <div className="flex items-end gap-2 sm:gap-3 lg:gap-4">
+              <div
+                className="flex items-end gap-2 sm:gap-3 lg:gap-4"
+                role="img"
+                aria-labelledby={`${cashflowTitleId} ${cashflowDescId}`}
+                aria-describedby={cashflowTableId}
+                tabIndex={0}
+              >
                 {combinedTrend.map(point => {
                   const incomeHeight = computeTrendHeight(point.income);
                   const expenseHeight = computeTrendHeight(point.expense);
@@ -447,6 +468,51 @@ export default function Dashboard() {
                   );
                 })}
               </div>
+            </div>
+            <div className="mt-6 overflow-x-auto">
+              <table
+                id={cashflowTableId}
+                className="min-w-full text-left text-xs sm:text-sm text-slate-300"
+              >
+                <caption className="sr-only">Table listing monthly income, expenses, and net cashflow</caption>
+                <thead>
+                  <tr className="text-slate-400">
+                    <th scope="col" className="px-2 py-1 font-semibold uppercase tracking-wide">
+                      Month
+                    </th>
+                    <th scope="col" className="px-2 py-1 font-semibold uppercase tracking-wide">
+                      Income
+                    </th>
+                    <th scope="col" className="px-2 py-1 font-semibold uppercase tracking-wide">
+                      Expenses
+                    </th>
+                    <th scope="col" className="px-2 py-1 font-semibold uppercase tracking-wide">
+                      Net
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {combinedTrend.map(point => {
+                    const net = point.income - point.expense;
+                    return (
+                      <tr key={`table-${point.monthKey}`} className="border-t border-slate-800/60">
+                        <th scope="row" className="px-2 py-1 font-semibold text-slate-200">
+                          {point.label}
+                        </th>
+                        <td className="px-2 py-1">{formatCurrency(point.income)}</td>
+                        <td className="px-2 py-1">{formatCurrency(point.expense)}</td>
+                        <td
+                          className={`px-2 py-1 font-semibold ${
+                            net >= 0 ? 'text-emerald-200' : 'text-rose-200'
+                          }`}
+                        >
+                          {`${net >= 0 ? '+' : '-'}${formatCurrency(Math.abs(net))}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
 

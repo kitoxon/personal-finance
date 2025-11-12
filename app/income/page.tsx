@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
-import { storage, Income } from '@/lib/storage';
+import { storage, Income, DEFAULT_CURRENCY_CODE, DEFAULT_CURRENCY_LOCALE } from '@/lib/storage';
 import {
   PlusCircle,
   Trash2,
@@ -16,12 +16,6 @@ import {
   X,
 } from 'lucide-react';
 import { format, subMonths, startOfMonth } from 'date-fns';
-
-const currencyFormatter = new Intl.NumberFormat('ja-JP', {
-  style: 'currency',
-  currency: 'JPY',
-  maximumFractionDigits: 0,
-});
 
 const quickAmounts = [100000, 250000, 500000, 1000000] as const;
 
@@ -36,6 +30,26 @@ export default function IncomePage() {
   const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
 
   const queryClient = useQueryClient();
+
+  const budgetSettingsQuery = useQuery({
+    queryKey: ['budgetSettings'],
+    queryFn: () => storage.getBudgetSettings(),
+  });
+
+  const currencyLocale = budgetSettingsQuery.data?.currencyLocale ?? DEFAULT_CURRENCY_LOCALE;
+  const currencyCode = budgetSettingsQuery.data?.currencyCode ?? DEFAULT_CURRENCY_CODE;
+
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(currencyLocale, {
+        style: 'currency',
+        currency: currencyCode,
+        maximumFractionDigits: 0,
+      }),
+    [currencyLocale, currencyCode],
+  );
+
+  const formatCurrency = (value: number) => currencyFormatter.format(value);
 
   const openFormSheet = () => {
     setFormError(null);
@@ -219,7 +233,7 @@ export default function IncomePage() {
           <h1 className="text-2xl font-bold mb-4">Income</h1>
           <div className="flex items-center gap-2 text-sm sm:text-base">
             <p className="text-emerald-200 text-sm">This month:</p>
-            <p className="text-xl font-bold text-emerald-100">¥{currentMonthTotal.toLocaleString()}</p>
+            <p className="text-xl font-bold text-emerald-100">{formatCurrency(currentMonthTotal)}</p>
           </div>
         </div>
       </div>
@@ -228,11 +242,11 @@ export default function IncomePage() {
         <div className="mb-6 sm:mb-8 grid gap-4 lg:gap-6 sm:grid-cols-3">
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">This month</p>
-            <p className="mt-1 text-2xl font-semibold text-emerald-200">¥{currentMonthTotal.toLocaleString()}</p>
+            <p className="mt-1 text-2xl font-semibold text-emerald-200">{formatCurrency(currentMonthTotal)}</p>
           </div>
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">Year to date</p>
-            <p className="mt-1 text-2xl font-semibold text-emerald-200">¥{annualTotal.toLocaleString()}</p>
+            <p className="mt-1 text-2xl font-semibold text-emerald-200">{formatCurrency(annualTotal)}</p>
           </div>
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">Entries logged</p>
@@ -486,7 +500,7 @@ export default function IncomePage() {
           <div className="space-y-4">
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-200">
-                Amount (¥)
+                Amount ({currencyCode})
               </label>
               <input
                 type="number"
@@ -655,7 +669,7 @@ export default function IncomePage() {
                 <div className="rounded-2xl border border-emerald-500/30 bg-slate-950/60 p-4 space-y-4">
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-emerald-100">
-                      Amount (¥)
+                      Amount ({currencyCode})
                     </label>
                     <input
                       type="number"

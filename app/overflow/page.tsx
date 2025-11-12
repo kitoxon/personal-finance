@@ -2,8 +2,15 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Navigation from '@/components/Navigation';
-import { storage, SavingsGoal, BudgetSettings, NewSavingsGoalInput } from '@/lib/storage';
+import {
+  storage,
+  SavingsGoal,
+  BudgetSettings,
+  NewSavingsGoalInput,
+  DEFAULT_CURRENCY_CODE,
+  DEFAULT_CURRENCY_LOCALE,
+  DEFAULT_EXPENSE_CATEGORIES,
+} from '@/lib/storage';
 import { calculateMonthlyOverflow, getOverflowStatusMessage } from '@/lib/overflow';
 import {
   TrendingUp,
@@ -28,6 +35,14 @@ const goalColors = [
   'from-yellow-500 to-orange-600',
 ];
 
+const currencyOptions = [
+  { code: 'JPY', label: 'Japanese Yen (JPY)', locale: 'ja-JP' },
+  { code: 'USD', label: 'US Dollar (USD)', locale: 'en-US' },
+  { code: 'EUR', label: 'Euro (EUR)', locale: 'de-DE' },
+  { code: 'GBP', label: 'British Pound (GBP)', locale: 'en-GB' },
+  { code: 'AUD', label: 'Australian Dollar (AUD)', locale: 'en-AU' },
+] as const;
+
 export default function CashOverflowPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showAddGoal, setShowAddGoal] = useState(false);
@@ -44,6 +59,10 @@ export default function CashOverflowPage() {
   const [savingsTarget, setSavingsTarget] = useState('20');
   const [overflowDay, setOverflowDay] = useState('25');
   const [autoAllocate, setAutoAllocate] = useState(true);
+  const [currencyCode, setCurrencyCode] = useState(DEFAULT_CURRENCY_CODE);
+  const [currencyLocale, setCurrencyLocale] = useState(DEFAULT_CURRENCY_LOCALE);
+  const [expenseCategories, setExpenseCategories] = useState<string[]>(Array.from(DEFAULT_EXPENSE_CATEGORIES));
+  const [newCategory, setNewCategory] = useState('');
 
   const queryClient = useQueryClient();
 
@@ -79,6 +98,14 @@ export default function CashOverflowPage() {
       setSavingsTarget(settings.savingsTarget.toString());
       setOverflowDay(settings.overflowDay.toString());
       setAutoAllocate(settings.autoAllocate);
+      setCurrencyCode(settings.currencyCode);
+      setCurrencyLocale(settings.currencyLocale);
+      setExpenseCategories(
+        settings.expenseCategories.length > 0
+          ? settings.expenseCategories
+          : Array.from(DEFAULT_EXPENSE_CATEGORIES),
+      );
+      setNewCategory('');
     }
   }, [settings]);
 
@@ -92,6 +119,39 @@ export default function CashOverflowPage() {
       setShowAddGoal(false);
     },
   });
+
+  const resolvedCurrencyCode = settings?.currencyCode ?? currencyCode;
+  const resolvedCurrencyLocale = settings?.currencyLocale ?? currencyLocale;
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(resolvedCurrencyLocale, {
+        style: 'currency',
+        currency: resolvedCurrencyCode,
+        maximumFractionDigits: 0,
+      }),
+    [resolvedCurrencyCode, resolvedCurrencyLocale],
+  );
+  const formatCurrency = (value: number) => currencyFormatter.format(value);
+
+  const handleAddCategory = () => {
+    const trimmed = newCategory.trim();
+    if (!trimmed) return;
+    if (expenseCategories.some(cat => cat.toLowerCase() === trimmed.toLowerCase())) {
+      setNewCategory('');
+      return;
+    }
+    setExpenseCategories(prev => [...prev, trimmed]);
+    setNewCategory('');
+  };
+
+  const handleRemoveCategory = (category: string) => {
+    setExpenseCategories(prev => {
+      if (prev.length === 1) {
+        return prev;
+      }
+      return prev.filter(cat => cat !== category);
+    });
+  };
 
   const deleteGoalMutation = useMutation({
     mutationFn: storage.deleteSavingsGoal,
@@ -130,7 +190,7 @@ export default function CashOverflowPage() {
     return calculateMonthlyOverflow(expenses, income, debts, goals, settings);
   }, [expenses, income, debts, goals, settings]);
 
-  const statusMessage = overflowCalc ? getOverflowStatusMessage(overflowCalc) : null;
+  const statusMessage = overflowCalc ? getOverflowStatusMessage(overflowCalc, formatCurrency) : null;
 
   const handleSaveGoal = (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,12 +216,24 @@ export default function CashOverflowPage() {
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const sanitizedCurrencyCode = currencyCode.trim().toUpperCase() || DEFAULT_CURRENCY_CODE;
+    const sanitizedLocale = currencyLocale.trim() || DEFAULT_CURRENCY_LOCALE;
+    const sanitizedCategories = expenseCategories
+      .map(cat => cat.trim())
+      .filter(cat => cat.length > 0);
+
     const newSettings: BudgetSettings = {
       monthlyIncome: parseFloat(monthlyIncome) || 0,
       fixedExpenses: parseFloat(fixedExpenses) || 0,
       savingsTarget: parseInt(savingsTarget) || 20,
       overflowDay: parseInt(overflowDay) || 25,
       autoAllocate,
+      currencyCode: sanitizedCurrencyCode,
+      currencyLocale: sanitizedLocale,
+      expenseCategories:
+        sanitizedCategories.length > 0
+          ? sanitizedCategories
+          : Array.from(DEFAULT_EXPENSE_CATEGORIES),
     };
 
     updateSettingsMutation.mutate(newSettings);
@@ -170,7 +242,7 @@ export default function CashOverflowPage() {
   const handleAllocateOverflow = () => {
     if (!overflowCalc || overflowCalc.recommendedAllocations.length === 0) return;
 
-    if (confirm(`Allocate ¥${overflowCalc.overflow.toLocaleString()} to your savings goals?`)) {
+    if (confirm(`Allocate ${formatCurrency(overflowCalc.overflow)} to your savings goals?`)) {
       allocateOverflowMutation.mutate(
         overflowCalc.recommendedAllocations.map(a => ({
           goalId: a.goalId,
@@ -227,7 +299,7 @@ export default function CashOverflowPage() {
               <div className="flex-1">
                 <h3 className="font-bold text-lg mb-1">
                   {overflowCalc.overflow > 0 
-                    ? `¥${overflowCalc.overflow.toLocaleString()} Overflow Available`
+                    ? `${formatCurrency(overflowCalc.overflow)} Overflow Available`
                     : 'No Overflow This Month'}
                 </h3>
                 <p className="text-sm opacity-90 mb-3">{statusMessage.message}</p>
@@ -249,19 +321,19 @@ export default function CashOverflowPage() {
             <div className="mt-4 pt-4 border-t border-white/20 grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <p className="text-xs opacity-70">Income</p>
-                <p className="font-bold">¥{overflowCalc.totalIncome.toLocaleString()}</p>
+                <p className="font-bold">{formatCurrency(overflowCalc.totalIncome)}</p>
               </div>
               <div>
                 <p className="text-xs opacity-70">Expenses</p>
-                <p className="font-bold">¥{overflowCalc.totalExpenses.toLocaleString()}</p>
+                <p className="font-bold">{formatCurrency(overflowCalc.totalExpenses)}</p>
               </div>
               <div>
                 <p className="text-xs opacity-70">Debts</p>
-                <p className="font-bold">¥{overflowCalc.totalDebts.toLocaleString()}</p>
+                <p className="font-bold">{formatCurrency(overflowCalc.totalDebts)}</p>
               </div>
               <div>
                 <p className="text-xs opacity-70">Available</p>
-                <p className="font-bold">¥{overflowCalc.availableForSavings.toLocaleString()}</p>
+                <p className="font-bold">{formatCurrency(overflowCalc.availableForSavings)}</p>
               </div>
             </div>
           </div>
@@ -333,8 +405,8 @@ export default function CashOverflowPage() {
                       <div className="space-y-2">
                         <div className="flex items-end justify-between">
                           <div>
-                            <p className="text-2xl font-bold">¥{goal.currentAmount.toLocaleString()}</p>
-                            <p className="text-xs text-slate-400">of ¥{goal.targetAmount.toLocaleString()}</p>
+                            <p className="text-2xl font-bold">{formatCurrency(goal.currentAmount)}</p>
+                            <p className="text-xs text-slate-400">of {formatCurrency(goal.targetAmount)}</p>
                           </div>
                           {goal.isCompleted ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2 py-1 text-xs font-semibold text-emerald-200">
@@ -357,7 +429,7 @@ export default function CashOverflowPage() {
 
                         {!goal.isCompleted && (
                           <p className="text-xs text-slate-400">
-                            ¥{remaining.toLocaleString()} remaining
+                            {formatCurrency(remaining)} remaining
                           </p>
                         )}
                       </div>
@@ -369,8 +441,6 @@ export default function CashOverflowPage() {
           )}
         </div>
       </div>
-
-      <Navigation />
 
       {/* Add Goal Modal */}
       {showAddGoal && (
@@ -391,7 +461,7 @@ export default function CashOverflowPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2">Target Amount (¥)</label>
+                <label className="block text-sm font-semibold mb-2">Target Amount ({resolvedCurrencyCode})</label>
                 <input
                   type="number"
                   value={targetAmount}
@@ -457,7 +527,7 @@ export default function CashOverflowPage() {
             
             <form onSubmit={handleSaveSettings} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-2">Monthly Income (¥)</label>
+                <label className="block text-sm font-semibold mb-2">Monthly Income ({currencyCode})</label>
                 <input
                   type="number"
                   value={monthlyIncome}
@@ -469,7 +539,7 @@ export default function CashOverflowPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2">Fixed Monthly Expenses (¥)</label>
+                <label className="block text-sm font-semibold mb-2">Fixed Monthly Expenses ({currencyCode})</label>
                 <input
                   type="number"
                   value={fixedExpenses}
@@ -511,6 +581,86 @@ export default function CashOverflowPage() {
                 <p className="text-xs text-slate-400 mt-1">Day of month to calculate overflow (e.g., 25th)</p>
               </div>
 
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Currency Code</label>
+                  <input
+                    type="text"
+                    value={currencyCode}
+                    onChange={(e) => setCurrencyCode(e.target.value.toUpperCase().slice(0, 5))}
+                    list="currency-code-options"
+                    placeholder="e.g. JPY"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-800 bg-slate-950/60 text-slate-100 focus:border-purple-500 transition"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Will be used across every currency formatter.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Locale</label>
+                  <input
+                    type="text"
+                    value={currencyLocale}
+                    onChange={(e) => setCurrencyLocale(e.target.value)}
+                    placeholder="e.g. ja-JP"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-800 bg-slate-950/60 text-slate-100 focus:border-purple-500 transition"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Controls thousand separators and symbol placement.</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">Expense Categories</label>
+                <p className="text-xs text-slate-400 mb-2">
+                  Reorder by deleting/adding. These feed the expense form and filters.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {expenseCategories.map(category => (
+                    <span
+                      key={category}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-700/70 bg-slate-900/70 px-3 py-1 text-xs font-semibold text-slate-200"
+                    >
+                      {category}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCategory(category)}
+                        disabled={expenseCategories.length === 1}
+                        className="rounded-full p-0.5 text-slate-400 transition hover:text-rose-300 disabled:opacity-40"
+                        aria-label={`Remove ${category}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    type="text"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        handleAddCategory();
+                      }
+                    }}
+                    placeholder="Add new category"
+                    className="flex-1 rounded-xl border-2 border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 focus:border-purple-500 transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCategory}
+                    disabled={!newCategory.trim()}
+                    className="rounded-xl bg-purple-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-400 disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                </div>
+                {expenseCategories.length === 1 && (
+                  <p className="mt-2 text-xs text-amber-200">
+                    At least one category is required.
+                  </p>
+                )}
+              </div>
+
               <div className="flex items-center justify-between p-4 rounded-xl bg-slate-950/60 border border-slate-800">
                 <div>
                   <p className="font-semibold">Auto-allocate Overflow</p>
@@ -530,6 +680,14 @@ export default function CashOverflowPage() {
                   />
                 </button>
               </div>
+
+              <datalist id="currency-code-options">
+                {currencyOptions.map(option => (
+                  <option key={option.code} value={option.code}>
+                    {option.label}
+                  </option>
+                ))}
+              </datalist>
 
               <div className="flex gap-3 pt-4">
                 <button

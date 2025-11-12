@@ -1,10 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+  type ReadonlyURLSearchParams,
+} from 'next/navigation';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
-import { storage, Expense, Debt } from '@/lib/storage';
+import {
+  storage,
+  Expense,
+  Debt,
+  DEFAULT_EXPENSE_CATEGORIES,
+  DEFAULT_CURRENCY_CODE,
+  DEFAULT_CURRENCY_LOCALE,
+} from '@/lib/storage';
 import {
   PlusCircle,
   Trash2,
@@ -42,17 +55,6 @@ import {
   parseAppDate,
 } from '@/lib/datetime';
 import { notifications } from '@/lib/notifications';
-const categories = [
-  'Food & Dining', 'Drinks', 'Alcohol & Nightlife', 'Transportation', 'Entertainment', 'Utilities', 
-  'Communication', 'Healthcare', 'Shopping', 'Other'
-];
-
-const currencyFormatter = new Intl.NumberFormat('ja-JP', {
-  style: 'currency',
-  currency: 'JPY',
-  maximumFractionDigits: 0,
-});
-
 type DatePreset = 'all' | 'today' | 'week' | 'month' | 'year';
 type AmountPreset = 'all' | 'gte1000' | 'gte5000' | 'gte10000';
 
@@ -70,12 +72,106 @@ const datePresetOptions: ReadonlyArray<{ id: DatePreset; label: string }> = [
   { id: 'year', label: 'This year' },
 ] as const;
 
-const amountPresetOptions: ReadonlyArray<{ id: AmountPreset; label: string; threshold?: number }> = [
+const amountPresetOptions: ReadonlyArray<{ id: AmountPreset; label?: string; threshold?: number }> = [
   { id: 'all', label: 'Any amount' },
-  { id: 'gte1000', label: '≥ ¥1k', threshold: 1000 },
-  { id: 'gte5000', label: '≥ ¥5k', threshold: 5000 },
-  { id: 'gte10000', label: '≥ ¥10k', threshold: 10000 },
+  { id: 'gte1000', threshold: 1000 },
+  { id: 'gte5000', threshold: 5000 },
+  { id: 'gte10000', threshold: 10000 },
 ] as const;
+
+const pageSizeOptions = [25, 50, 100] as const;
+
+const FILTER_STORAGE_KEY = 'expensesFilters';
+const DEFAULT_FILTER_STATE = {
+  categoryFilter: 'all',
+  searchTerm: '',
+  datePreset: 'month' as DatePreset,
+  amountPreset: 'all' as AmountPreset,
+  viewMode: 'detailed' as 'detailed' | 'compact',
+};
+type FilterSnapshot = typeof DEFAULT_FILTER_STATE;
+
+const isDatePreset = (value: string | null): value is DatePreset =>
+  value !== null && ['all', 'today', 'week', 'month', 'year'].includes(value);
+
+const isAmountPreset = (value: string | null): value is AmountPreset =>
+  value !== null && ['all', 'gte1000', 'gte5000', 'gte10000'].includes(value);
+
+const isViewMode = (value: string | null): value is 'detailed' | 'compact' =>
+  value === 'detailed' || value === 'compact';
+
+const parseFiltersFromParams = (
+  params: ReadonlyURLSearchParams,
+  categories: string[],
+): FilterSnapshot | null => {
+  const next: FilterSnapshot = { ...DEFAULT_FILTER_STATE };
+  let hasValue = false;
+
+  const date = params.get('date');
+  if (isDatePreset(date)) {
+    next.datePreset = date;
+    hasValue = true;
+  }
+
+  const amount = params.get('amount');
+  if (isAmountPreset(amount)) {
+    next.amountPreset = amount;
+    hasValue = true;
+  }
+
+  const category = params.get('category');
+  if (category && (category === 'all' || categories.includes(category))) {
+    next.categoryFilter = category;
+    hasValue = true;
+  }
+
+  const search = params.get('search');
+  if (search !== null) {
+    next.searchTerm = search;
+    hasValue = true;
+  }
+
+  const view = params.get('view');
+  if (isViewMode(view)) {
+    next.viewMode = view;
+    hasValue = true;
+  }
+
+  return hasValue ? next : null;
+};
+
+const readStoredFilters = (categories: string[]): FilterSnapshot | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(FILTER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<FilterSnapshot>;
+    const next: FilterSnapshot = { ...DEFAULT_FILTER_STATE };
+
+    if (parsed.datePreset && isDatePreset(parsed.datePreset)) {
+      next.datePreset = parsed.datePreset;
+    }
+    if (parsed.amountPreset && isAmountPreset(parsed.amountPreset)) {
+      next.amountPreset = parsed.amountPreset;
+    }
+    if (
+      typeof parsed.categoryFilter === 'string' &&
+      (parsed.categoryFilter === 'all' || categories.includes(parsed.categoryFilter))
+    ) {
+      next.categoryFilter = parsed.categoryFilter;
+    }
+    if (typeof parsed.searchTerm === 'string') {
+      next.searchTerm = parsed.searchTerm;
+    }
+    if (parsed.viewMode && isViewMode(parsed.viewMode)) {
+      next.viewMode = parsed.viewMode;
+    }
+
+    return next;
+  } catch {
+    return null;
+  }
+};
 
 const formSteps = ['amount', 'category', 'details'] as const;
 type FormStep = (typeof formSteps)[number];
@@ -85,9 +181,9 @@ const formStepLabels: Record<FormStep, string> = {
   details: 'Details',
 };
 
-export default function ExpensesPage() {
+function ExpensesPageInner() {
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState(categories[0]);
+  const [category, setCategory] = useState<string>(DEFAULT_EXPENSE_CATEGORIES[0]);
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(formatDateForInput(new Date()));
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -101,12 +197,19 @@ export default function ExpensesPage() {
   const [viewMode, setViewMode] = useState<'detailed' | 'compact'>('detailed');
   const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
   const [formStep, setFormStep] = useState<FormStep>('amount');
+  const [filtersHydrated, setFiltersHydrated] = useState(false);
+  const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(pageSizeOptions[0]);
+  const [pageIndex, setPageIndex] = useState(0);
 
   const currentFormStepIndex = formSteps.indexOf(formStep);
   const isFirstFormStep = currentFormStepIndex === 0;
   const isLastFormStep = currentFormStepIndex === formSteps.length - 1;
 
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const lastSyncedQueryRef = useRef<string>('');
 
   const {
     data: expensesData = [],
@@ -125,6 +228,139 @@ export default function ExpensesPage() {
     queryKey: ['debts'],
     queryFn: () => storage.getDebts(),
   });
+
+  const budgetSettingsQuery = useQuery({
+    queryKey: ['budgetSettings'],
+    queryFn: () => storage.getBudgetSettings(),
+  });
+
+  const budgetSettings = budgetSettingsQuery.data;
+  const currencyLocale = budgetSettings?.currencyLocale ?? DEFAULT_CURRENCY_LOCALE;
+  const currencyCode = budgetSettings?.currencyCode ?? DEFAULT_CURRENCY_CODE;
+  const expenseCategories = useMemo(
+    () =>
+      budgetSettings?.expenseCategories && budgetSettings.expenseCategories.length > 0
+        ? budgetSettings.expenseCategories
+        : Array.from(DEFAULT_EXPENSE_CATEGORIES),
+    [budgetSettings],
+  );
+
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(currencyLocale, {
+        style: 'currency',
+        currency: currencyCode,
+        maximumFractionDigits: 0,
+      }),
+    [currencyLocale, currencyCode],
+  );
+
+  const formatCurrency = (value: number) => currencyFormatter.format(value);
+
+  const formatAmountPresetLabel = (preset: AmountPreset) => {
+    const option = amountPresetOptions.find(option => option.id === preset);
+    if (!option) {
+      return 'Any amount';
+    }
+    if (option.label) {
+      return option.label;
+    }
+    if (typeof option.threshold === 'number') {
+      return `≥ ${formatCurrency(option.threshold)}`;
+    }
+    return 'Any amount';
+  };
+
+  useEffect(() => {
+    if (expenseCategories.length === 0) {
+      setCategory('');
+      return;
+    }
+    setCategory(current => (expenseCategories.includes(current) ? current : expenseCategories[0]));
+  }, [expenseCategories]);
+
+  useEffect(() => {
+    if (categoryFilter !== 'all' && !expenseCategories.includes(categoryFilter)) {
+      setCategoryFilter('all');
+    }
+  }, [categoryFilter, expenseCategories]);
+
+  useEffect(() => {
+    if (filtersHydrated || expenseCategories.length === 0) return;
+
+    const queryFilters = parseFiltersFromParams(searchParams, expenseCategories);
+    const storedFilters = queryFilters ? null : readStoredFilters(expenseCategories);
+    const applied = queryFilters ?? storedFilters;
+
+    if (applied) {
+      setCategoryFilter(applied.categoryFilter);
+      setSearchTerm(applied.searchTerm);
+      setDatePreset(applied.datePreset);
+      setAmountPreset(applied.amountPreset);
+      setViewMode(applied.viewMode);
+    }
+
+    const initialQuery = searchParams.toString();
+    lastSyncedQueryRef.current = initialQuery ? `${pathname}?${initialQuery}` : pathname;
+    setFiltersHydrated(true);
+  }, [filtersHydrated, expenseCategories, searchParams, pathname]);
+
+  useEffect(() => {
+    if (!filtersHydrated) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    const setParam = (key: string, value: string, defaultValue: string) => {
+      if (value === defaultValue) {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    };
+
+    setParam('date', datePreset, DEFAULT_FILTER_STATE.datePreset);
+    setParam('amount', amountPreset, DEFAULT_FILTER_STATE.amountPreset);
+    setParam('category', categoryFilter, DEFAULT_FILTER_STATE.categoryFilter);
+    setParam('view', viewMode, DEFAULT_FILTER_STATE.viewMode);
+
+    const trimmedSearch = searchTerm.trim();
+    if (trimmedSearch) {
+      params.set('search', trimmedSearch);
+    } else {
+      params.delete('search');
+    }
+
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+
+    if (nextUrl === lastSyncedQueryRef.current) {
+      return;
+    }
+
+    lastSyncedQueryRef.current = nextUrl;
+    router.replace(nextUrl, { scroll: false });
+  }, [
+    datePreset,
+    amountPreset,
+    categoryFilter,
+    searchTerm,
+    viewMode,
+    filtersHydrated,
+    router,
+    pathname,
+    searchParams,
+  ]);
+
+  useEffect(() => {
+    if (!filtersHydrated || typeof window === 'undefined') return;
+    const snapshot: FilterSnapshot = {
+      categoryFilter,
+      searchTerm,
+      datePreset,
+      amountPreset,
+      viewMode,
+    };
+    window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(snapshot));
+  }, [categoryFilter, searchTerm, datePreset, amountPreset, viewMode, filtersHydrated]);
 
   const expenses = useMemo<Expense[]>(() => {
     return [...expensesData].sort((a, b) => {
@@ -326,6 +562,20 @@ export default function ExpensesPage() {
     return filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   }, [filteredExpenses]);
 
+  useEffect(() => {
+    setPageIndex(prev => {
+      const maxPage = Math.max(0, Math.ceil(filteredExpenses.length / pageSize) - 1);
+      return Math.min(prev, maxPage);
+    });
+  }, [filteredExpenses.length, pageSize]);
+
+  const paginatedExpenses = useMemo(() => {
+    const maxPage = Math.max(0, Math.ceil(filteredExpenses.length / pageSize) - 1);
+    const safePage = Math.min(pageIndex, maxPage);
+    const start = safePage * pageSize;
+    return filteredExpenses.slice(start, start + pageSize);
+  }, [filteredExpenses, pageIndex, pageSize]);
+
   const maxFilteredAmount = useMemo(() => {
     return filteredExpenses.reduce((max, expense) => Math.max(max, expense.amount), 0);
   }, [filteredExpenses]);
@@ -341,6 +591,10 @@ export default function ExpensesPage() {
 
   const filteredCount = filteredExpenses.length;
   const totalCount = expenses.length;
+  const totalPages = Math.max(1, Math.ceil(Math.max(filteredCount, 1) / pageSize));
+  const clampedPageIndex = Math.min(pageIndex, totalPages - 1);
+  const pageStart = filteredCount === 0 ? 0 : clampedPageIndex * pageSize + 1;
+  const pageEnd = filteredCount === 0 ? 0 : Math.min(filteredCount, (clampedPageIndex + 1) * pageSize);
 
   const activeFilterChips = useMemo<ActiveChip[]>(() => {
     const chips: ActiveChip[] = [];
@@ -360,10 +614,9 @@ export default function ExpensesPage() {
       });
     }
     if (amountPreset !== 'all') {
-      const label = amountPresetOptions.find(option => option.id === amountPreset)?.label ?? 'Any amount';
       chips.push({
         key: 'amount',
-        label,
+        label: formatAmountPresetLabel(amountPreset),
         onRemove: () => setAmountPreset('all'),
       });
     }
@@ -628,7 +881,7 @@ export default function ExpensesPage() {
                   : 'border-slate-700/60 bg-slate-900/60 text-slate-300 hover:border-emerald-500/40 hover:text-emerald-100'
               }`}
             >
-              {option.label}
+              {formatAmountPresetLabel(option.id)}
             </button>
           ))}
         </div>
@@ -642,7 +895,7 @@ export default function ExpensesPage() {
           className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
         >
           <option className="bg-slate-950/75 backdrop-blur" value="all">All categories</option>
-          {categories.map(cat => (
+          {expenseCategories.map(cat => (
             <option className="bg-slate-950/75 backdrop-blur" key={cat} value={cat}>{cat}</option>
           ))}
         </select>
@@ -658,7 +911,7 @@ export default function ExpensesPage() {
           <h1 className="text-2xl font-bold mb-2">Expenses</h1>
           <div className="flex items-center gap-2">
             <p className="text-amber-200 text-sm">Today&apos;s total:</p>
-            <p className="text-xl font-bold text-amber-100">¥{todayTotal.toLocaleString()}</p>
+            <p className="text-xl font-bold text-amber-100">{formatCurrency(todayTotal)}</p>
           </div>
         </div>
       </div>
@@ -667,15 +920,15 @@ export default function ExpensesPage() {
         <div className="mb-6 sm:mb-8 grid gap-4 lg:gap-6 sm:grid-cols-3">
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">Today&apos;s spend</p>
-            <p className="mt-1 text-2xl font-semibold text-amber-200">¥{todayTotal.toLocaleString()}</p>
+            <p className="mt-1 text-2xl font-semibold text-amber-200">{formatCurrency(todayTotal)}</p>
           </div>
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">This month</p>
-            <p className="mt-1 text-2xl font-semibold text-amber-200">¥{monthTotal.toLocaleString()}</p>
+            <p className="mt-1 text-2xl font-semibold text-amber-200">{formatCurrency(monthTotal)}</p>
           </div>
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 sm:p-5 lg:p-6">
             <p className="text-xs uppercase tracking-widest text-slate-500">Daily average</p>
-            <p className="mt-1 text-2xl font-semibold text-amber-200">¥{Math.round(averageSpend).toLocaleString()}</p>
+            <p className="mt-1 text-2xl font-semibold text-amber-200">{formatCurrency(Math.round(averageSpend))}</p>
           </div>
         </div>
 
@@ -755,7 +1008,7 @@ export default function ExpensesPage() {
                           <p className="text-xs uppercase tracking-wider">{dueDate}</p>
                           <p className="text-sm font-semibold text-slate-100">{debt.name}</p>
                         </div>
-                        <p className="text-sm font-semibold text-emerald-200">¥{debt.amount.toLocaleString()}</p>
+                        <p className="text-sm font-semibold text-emerald-200">{formatCurrency(debt.amount)}</p>
                       </li>
                     );
                   })}
@@ -775,12 +1028,17 @@ export default function ExpensesPage() {
                 <div>
                   <p className="text-xs uppercase tracking-widest text-slate-500">Filtered total</p>
                   <p className="text-xl font-semibold text-amber-200">
-                    ¥{filteredTotal.toLocaleString()}
+                    {formatCurrency(filteredTotal)}
                   </p>
                   <p className="text-xs text-slate-400">
                     {filteredCount === totalCount
                       ? 'Showing every expense'
                       : `Showing ${filteredCount} of ${totalCount} expenses`}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {filteredCount === 0
+                      ? 'No entries to paginate'
+                      : `Rows ${pageStart}-${pageEnd} · Page ${clampedPageIndex + 1} of ${totalPages}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -820,6 +1078,46 @@ export default function ExpensesPage() {
                       Compact
                     </button>
                   </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                <label className="flex items-center gap-2">
+                  <span>Rows per page</span>
+                  <select
+                    value={pageSize}
+                    onChange={(event) => {
+                      setPageSize(Number(event.target.value) as (typeof pageSizeOptions)[number]);
+                      setPageIndex(0);
+                    }}
+                    className="rounded-lg border border-slate-700/70 bg-slate-900/70 px-2 py-1 text-slate-100 focus:border-amber-500"
+                  >
+                    {pageSizeOptions.map(size => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPageIndex(prev => Math.max(prev - 1, 0))}
+                    disabled={clampedPageIndex === 0 || filteredCount === 0}
+                    className="rounded-full border border-slate-700/60 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-200 transition hover:border-amber-500 hover:text-amber-100 disabled:opacity-40"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-slate-500">
+                    {filteredCount === 0 ? '0 of 0' : `${pageStart}-${pageEnd} of ${filteredCount}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPageIndex(prev => Math.min(prev + 1, totalPages - 1))}
+                    disabled={clampedPageIndex >= totalPages - 1 || filteredCount === 0}
+                    className="rounded-full border border-slate-700/60 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-200 transition hover:border-amber-500 hover:text-amber-100 disabled:opacity-40"
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
 
@@ -1014,9 +1312,9 @@ export default function ExpensesPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-200">
-                    Amount (¥)
-                  </label>
+                    <label className="mb-2 block text-sm font-semibold text-slate-200">
+                      Amount ({currencyCode})
+                    </label>
                   <input
                     type="number"
                     value={amount}
@@ -1033,7 +1331,7 @@ export default function ExpensesPage() {
                         onClick={() => setAmount(String(value))}
                         className="rounded-full border border-slate-700/60 px-3 py-1 text-xs font-semibold text-slate-300 transition hover:border-amber-500/60 hover:text-amber-100"
                       >
-                        +¥{value.toLocaleString()}
+                        +{formatCurrency(value)}
                       </button>
                     ))}
                   </div>
@@ -1048,7 +1346,7 @@ export default function ExpensesPage() {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full rounded-xl border-2 border-slate-800 bg-slate-950/60 px-4 py-3 font-medium text-slate-100 focus:border-amber-500 focus:ring-2 focus:ring-amber-500 transition-all shadow-sm"
                   >
-                    {categories.map(cat => (
+                    {expenseCategories.map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
@@ -1127,7 +1425,7 @@ export default function ExpensesPage() {
                   </div>
                 )
               ) : (
-                filteredExpenses.map(expense => {
+                paginatedExpenses.map(expense => {
                   const formattedDate = formatDateForDisplay(expense.date);
                   const isHighSpender = expense.amount > averageSpend * 1.2;
                   const progress =
@@ -1146,7 +1444,7 @@ export default function ExpensesPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-amber-100">
-                              ¥{expense.amount.toLocaleString()}
+                              {formatCurrency(expense.amount)}
                             </span>
                             <button
                               type="button"
@@ -1198,7 +1496,7 @@ export default function ExpensesPage() {
                             <p className="mb-2 text-sm font-medium text-slate-300">{expense.description}</p>
                           )}
                           <p className="text-2xl font-bold text-slate-100">
-                            ¥{expense.amount.toLocaleString()}
+                            {formatCurrency(expense.amount)}
                           </p>
                           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800/80">
                             <div
@@ -1303,9 +1601,9 @@ export default function ExpensesPage() {
                 {formStep === 'amount' && (
                   <div className="space-y-4">
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-amber-100">
-                        Amount (¥)
-                      </label>
+                    <label className="mb-2 block text-sm font-semibold text-amber-100">
+                      Amount ({currencyCode})
+                    </label>
                       <input
                         type="number"
                         value={amount}
@@ -1334,7 +1632,7 @@ export default function ExpensesPage() {
                   <div className="space-y-3">
                     <p className="text-sm font-semibold text-amber-100">Select a category</p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {categories.map(option => {
+                  {expenseCategories.map(option => {
                         const isActive = category === option;
                         return (
                           <button
@@ -1428,5 +1726,19 @@ export default function ExpensesPage() {
       )}
 
     </div>
+  );
+}
+
+export default function ExpensesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[50vh] w-full px-4 py-10 text-center text-sm text-slate-400">
+          Loading expenses…
+        </div>
+      }
+    >
+      <ExpensesPageInner />
+    </Suspense>
   );
 }

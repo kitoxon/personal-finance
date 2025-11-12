@@ -86,6 +86,9 @@ type BudgetSettingsRow = {
   savings_target: number;
   overflow_day: number;
   auto_allocate: boolean;
+  currency_code?: string | null;
+  currency_locale?: string | null;
+  expense_categories?: string[] | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -119,7 +122,24 @@ export interface BudgetSettings {
   savingsTarget: number;
   overflowDay: number;
   autoAllocate: boolean;
+  currencyCode: string;
+  currencyLocale: string;
+  expenseCategories: string[];
 }
+export const DEFAULT_CURRENCY_CODE = 'JPY';
+export const DEFAULT_CURRENCY_LOCALE = 'ja-JP';
+export const DEFAULT_EXPENSE_CATEGORIES = [
+  'Food & Dining',
+  'Drinks',
+  'Alcohol & Nightlife',
+  'Transportation',
+  'Entertainment',
+  'Utilities',
+  'Communication',
+  'Healthcare',
+  'Shopping',
+  'Other',
+] as const;
 export type NewSavingsGoalInput = Omit<SavingsGoal, 'id' | 'createdAt'>;
 export type NewOverflowAllocationInput = Omit<OverflowAllocation, 'id' | 'createdAt'>;
 export type NewExpenseInput = Omit<Expense, 'id' | 'createdAt'>;
@@ -195,6 +215,11 @@ const mapBudgetSettingsRow = (row: BudgetSettingsRow): BudgetSettings => ({
   savingsTarget: row.savings_target,
   overflowDay: row.overflow_day,
   autoAllocate: Boolean(row.auto_allocate),
+  currencyCode: row.currency_code ?? DEFAULT_CURRENCY_CODE,
+  currencyLocale: row.currency_locale ?? DEFAULT_CURRENCY_LOCALE,
+  expenseCategories: (row.expense_categories && row.expense_categories.length > 0
+    ? row.expense_categories
+    : Array.from(DEFAULT_EXPENSE_CATEGORIES)) as string[],
 });
 const mapExpenseRow = (row: ExpenseRow): Expense => ({
   id: row.id,
@@ -724,6 +749,9 @@ export const storage = {
       savingsTarget: 20,
       overflowDay: 25,
       autoAllocate: true,
+      currencyCode: DEFAULT_CURRENCY_CODE,
+      currencyLocale: DEFAULT_CURRENCY_LOCALE,
+      expenseCategories: Array.from(DEFAULT_EXPENSE_CATEGORIES),
     };
 
     if (client) {
@@ -747,7 +775,18 @@ export const storage = {
     }
 
     const localSettings = readLocal<BudgetSettings>(LOCAL_KEYS.budgetSettings);
-    return localSettings.length > 0 ? localSettings[0] : defaultSettings;
+    if (localSettings.length > 0) {
+      const stored = localSettings[0];
+      return {
+        ...defaultSettings,
+        ...stored,
+        expenseCategories:
+          stored.expenseCategories && stored.expenseCategories.length > 0
+            ? stored.expenseCategories
+            : defaultSettings.expenseCategories,
+      };
+    }
+    return defaultSettings;
   },
 
   async saveBudgetSettings(settings: BudgetSettings): Promise<void> {
@@ -768,6 +807,9 @@ export const storage = {
           savings_target: settings.savingsTarget,
           overflow_day: settings.overflowDay,
           auto_allocate: settings.autoAllocate,
+          currency_code: settings.currencyCode,
+          currency_locale: settings.currencyLocale,
+          expense_categories: settings.expenseCategories,
           updated_at: new Date().toISOString(),
         };
 

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { storage } from '@/lib/storage';
+import { storage, DEFAULT_CURRENCY_CODE, DEFAULT_CURRENCY_LOCALE } from '@/lib/storage';
 import { calculateMonthlyOverflow } from '@/lib/overflow';
 import { notifications } from '@/lib/notifications';
 import { getDate } from 'date-fns';
@@ -33,6 +33,19 @@ export function useOverflowNotifications() {
     queryFn: () => storage.getBudgetSettings(),
   });
 
+  const currencyLocale = settings?.currencyLocale ?? DEFAULT_CURRENCY_LOCALE;
+  const currencyCode = settings?.currencyCode ?? DEFAULT_CURRENCY_CODE;
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(currencyLocale, {
+        style: 'currency',
+        currency: currencyCode,
+        maximumFractionDigits: 0,
+      }),
+    [currencyLocale, currencyCode],
+  );
+  const formatCurrency = (value: number) => currencyFormatter.format(value);
+
   useEffect(() => {
     if (!settings) return;
 
@@ -52,7 +65,7 @@ export function useOverflowNotifications() {
       if (calc.overflow > 0) {
         await notifications.show({
           title: '💰 Cash Overflow Available!',
-          body: `You have ¥${calc.overflow.toLocaleString()} to allocate to your savings goals`,
+          body: `You have ${formatCurrency(calc.overflow)} to allocate to your savings goals`,
           tag: 'overflow-available',
           requireInteraction: true,
         });
