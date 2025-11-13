@@ -93,7 +93,7 @@ export default function NotificationSettings() {
           <div>
             <p className="text-sm font-medium">Notifications not supported</p>
             <p className="text-xs text-slate-500 mt-1">
-              Your browser doesn't support notifications, or you're not using the installed PWA.
+              Your browser doesn&rsquo;t support notifications, or you&rsquo;re not using the installed PWA.
             </p>
           </div>
         </div>
@@ -163,7 +163,7 @@ export default function NotificationSettings() {
           </p>
           <ol className="text-xs text-rose-200/80 space-y-1 list-decimal list-inside">
             <li>Open your browser settings</li>
-            <li>Find "Site settings" or "Permissions"</li>
+            <li>Find &quot;Site settings&quot; or &quot;Permissions&quot;</li>
             <li>Look for this website</li>
             <li>Allow notifications</li>
             <li>Refresh this page</li>
@@ -281,7 +281,7 @@ export default function NotificationSettings() {
         <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-4">
           <p className="text-xs text-slate-400">
             💡 Enable notifications to get alerts about expenses, bills, and budget limits. 
-            We'll only send you helpful reminders, never spam.
+            We&rsquo;ll only send you helpful reminders, never spam.
           </p>
         </div>
       )}

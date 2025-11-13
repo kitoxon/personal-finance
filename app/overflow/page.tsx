@@ -4,26 +4,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   storage,
-  SavingsGoal,
   BudgetSettings,
-  NewSavingsGoalInput,
   DEFAULT_CURRENCY_CODE,
   DEFAULT_CURRENCY_LOCALE,
   DEFAULT_EXPENSE_CATEGORIES,
 } from '@/lib/storage';
 import { calculateMonthlyOverflow, getOverflowStatusMessage } from '@/lib/overflow';
-import {
-  TrendingUp,
-  Target,
-  PlusCircle,
-  Trash2,
-  ArrowRight,
-  Settings,
-  CheckCircle,
-  AlertCircle,
-  DollarSign,
-  Zap,
-} from 'lucide-react';
+import { Target, PlusCircle, Trash2, ArrowRight, Settings, CheckCircle, AlertCircle, Zap } from 'lucide-react';
 import { format } from 'date-fns';
 
 const goalColors = [
@@ -363,7 +350,7 @@ export default function CashOverflowPage() {
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
-              {goals.map((goal, index) => {
+              {goals.map(goal => {
                 const progress = (goal.currentAmount / goal.targetAmount) * 100;
                 const remaining = Math.max(0, goal.targetAmount - goal.currentAmount);
                 

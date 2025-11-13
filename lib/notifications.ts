@@ -1,4 +1,4 @@
-export interface NotificationOptions {
+export interface NotificationPayload {
   title: string;
   body: string;
   icon?: string;
@@ -6,7 +6,7 @@ export interface NotificationOptions {
   tag?: string;
   requireInteraction?: boolean;
   vibrate?: number[];
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 export const notifications = {
@@ -46,7 +46,7 @@ export const notifications = {
   },
 
   // Show a notification (works on both desktop and mobile)
-  async show(options: NotificationOptions): Promise<void> {
+  async show(options: NotificationPayload): Promise<void> {
     if (!this.isSupported()) {
       console.warn('Notifications not supported');
       return;
@@ -67,14 +67,12 @@ export const notifications = {
       }
     }
 
-    const notificationOptions: NotificationOptions & { actions?: any[] } = {
-      title: options.title,
+    const notificationOptions: NotificationOptions = {
       body: options.body,
       icon: options.icon || '/icon-192x192.png',
       badge: options.badge || '/icon-192x192.png',
       tag: options.tag || 'default',
       requireInteraction: options.requireInteraction || false,
-      vibrate: options.vibrate || [200, 100, 200],
       data: options.data || {},
     };
 

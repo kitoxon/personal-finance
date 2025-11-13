@@ -50,7 +50,8 @@ export function ConfirmDelete({
             type="button"
             className="rounded-lg p-1 text-rose-300 transition hover:bg-rose-500/10 hover:text-rose-100 disabled:opacity-60"
             disabled={disabled}
-            aria-label="Delete expense"
+            aria-label={triggerLabel}
+            title={triggerLabel}
         >
             <Trash2 size={size} />
         </button>

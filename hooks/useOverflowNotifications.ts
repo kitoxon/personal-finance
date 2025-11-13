@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { storage, DEFAULT_CURRENCY_CODE, DEFAULT_CURRENCY_LOCALE } from '@/lib/storage';
 import { calculateMonthlyOverflow } from '@/lib/overflow';
@@ -44,7 +44,7 @@ export function useOverflowNotifications() {
       }),
     [currencyLocale, currencyCode],
   );
-  const formatCurrency = (value: number) => currencyFormatter.format(value);
+  const formatCurrency = useCallback((value: number) => currencyFormatter.format(value), [currencyFormatter]);
 
   useEffect(() => {
     if (!settings) return;
@@ -91,5 +91,5 @@ export function useOverflowNotifications() {
     }, msUntilMidnight);
 
     return () => clearTimeout(timeout);
-  }, [expenses, income, debts, goals, settings]);
+  }, [expenses, income, debts, goals, settings, formatCurrency]);
 }

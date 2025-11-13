@@ -7,7 +7,7 @@ import {
   useSearchParams,
   type ReadonlyURLSearchParams,
 } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
 import {
@@ -255,9 +255,9 @@ function ExpensesPageInner() {
     [currencyLocale, currencyCode],
   );
 
-  const formatCurrency = (value: number) => currencyFormatter.format(value);
+  const formatCurrency = useCallback((value: number) => currencyFormatter.format(value), [currencyFormatter]);
 
-  const formatAmountPresetLabel = (preset: AmountPreset) => {
+  const formatAmountPresetLabel = useCallback((preset: AmountPreset) => {
     const option = amountPresetOptions.find(option => option.id === preset);
     if (!option) {
       return 'Any amount';
@@ -269,7 +269,7 @@ function ExpensesPageInner() {
       return `≥ ${formatCurrency(option.threshold)}`;
     }
     return 'Any amount';
-  };
+  }, [formatCurrency]);
 
   useEffect(() => {
     if (expenseCategories.length === 0) {
@@ -628,7 +628,7 @@ function ExpensesPageInner() {
       });
     }
     return chips;
-  }, [categoryFilter, datePreset, amountPreset, searchTerm]);
+  }, [categoryFilter, datePreset, amountPreset, searchTerm, formatAmountPresetLabel]);
 
   const upcomingDebts = useMemo(() => {
     const debts = debtsQuery.data ?? [];
