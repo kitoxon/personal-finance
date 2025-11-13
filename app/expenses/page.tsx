@@ -444,7 +444,7 @@ function ExpensesPageInner() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (!isLastFormStep) return;
+    if (isFormSheetOpen && !isLastFormStep) return;
     setFormError(null);
     if (!ensureAmountValid()) {
       return;
