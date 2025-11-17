@@ -6,12 +6,13 @@ import { useQuery } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
 import { storage, Expense } from '@/lib/storage';
 import { Wallet, CreditCard, Calendar, ArrowUpRight, ArrowDownRight, PlusCircle, RefreshCw, Zap } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, isWithinInterval, isSameDay, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, isWithinInterval, isSameDay, subMonths, addMonths } from 'date-fns';
 import { formatDateForDisplay, parseAppDate } from '@/lib/datetime';
 import NotificationSettings from '@/components/NotificationSettings';
 import { useDebtReminders } from '@/hooks/useDebtReminders';
 import { calculateMonthlyOverflow } from '@/lib/overflow';
 import { useOverflowNotifications } from '@/hooks/useOverflowNotifications';
+import { calculatePayoffSchedule } from '@/lib/debtCalculator';
 export default function Dashboard() {
   useOverflowNotifications();
   useDebtReminders();
@@ -237,6 +238,7 @@ export default function Dashboard() {
     : null;
 
   const balance = monthlyIncome - monthlyExpenses - totalDebts;
+  const monthlySurplus = Math.max(0, monthlyIncome - monthlyExpenses);
   const balanceMessage = balance > 0 ? 'Surplus' : balance === 0 ? 'Balanced' : 'Deficit';
 
   const { data: settings } = useQuery({
@@ -255,6 +257,179 @@ export default function Dashboard() {
     // You'll need to get expenses, income, debts from queries
     return calculateMonthlyOverflow(expenses, income, debts, goals, settings);
   }, [expenses, income, debts, goals, settings]);
+
+  const debtFreedomTracker = useMemo(() => {
+    const activeDebts = debts.filter(debt => !debt.isPaid);
+    if (activeDebts.length === 0) {
+      return {
+        items: [] as Array<{
+          id: string;
+          name: string;
+          amount: number;
+          payment: number;
+          payoffDate: Date | null;
+          months: number | null;
+          totalInterest: number;
+          dueDate: string;
+        }>,
+        overallDate: null as Date | null,
+        overallMonths: null as number | null,
+        totalInterest: 0,
+      };
+    }
+
+    const items = activeDebts.map(debt => {
+      const estimatedPayment = Math.max(10000, Math.round(debt.amount / 12));
+      const projection = calculatePayoffSchedule(
+        debt.amount,
+        estimatedPayment,
+        debt.interestRate ?? 0,
+      );
+      const payoffDate = projection?.payoffDate ?? parseAppDate(debt.dueDate) ?? null;
+
+      return {
+        id: debt.id,
+        name: debt.name,
+        amount: debt.amount,
+        payment: estimatedPayment,
+        payoffDate,
+        months: projection?.months ?? null,
+        totalInterest: projection?.totalInterest ?? 0,
+        dueDate: debt.dueDate,
+      };
+    });
+
+    const overallDate = items.reduce<Date | null>((latest, item) => {
+      if (!item.payoffDate) return latest;
+      if (!latest || item.payoffDate > latest) {
+        return item.payoffDate;
+      }
+      return latest;
+    }, null);
+
+    const overallMonths = items.reduce<number | null>((max, item) => {
+      if (item.months == null) return max;
+      if (max == null || item.months > max) {
+        return item.months;
+      }
+      return max;
+    }, null);
+
+    const totalInterest = items.reduce((sum, item) => sum + item.totalInterest, 0);
+
+    return {
+      items,
+      overallDate,
+      overallMonths,
+      totalInterest,
+    };
+  }, [debts]);
+
+  const goalBreakdown = useMemo(() => {
+    const activeGoals = goals.filter(goal => !goal.isCompleted);
+    if (activeGoals.length === 0) {
+      return {
+        items: [] as Array<{
+          id: string;
+          name: string;
+          remaining: number;
+          progress: number;
+          eta: Date | null;
+          months: number | null;
+          color: string;
+        }>,
+        monthlyPerGoal: 0,
+        monthlyBudget: 0,
+      };
+    }
+
+    const monthlyBudget =
+      overflowCalc && overflowCalc.overflow > 0 ? overflowCalc.overflow : monthlySurplus;
+    const monthlyPerGoal =
+      monthlyBudget > 0 ? Math.max(5000, Math.round(monthlyBudget / activeGoals.length)) : 0;
+
+    const items = activeGoals.map(goal => {
+      const remaining = Math.max(0, goal.targetAmount - goal.currentAmount);
+      const months = monthlyPerGoal > 0 ? Math.ceil(remaining / monthlyPerGoal) : null;
+      const eta = months ? addMonths(new Date(), months) : null;
+      const progress =
+        goal.targetAmount > 0
+          ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100))
+          : 0;
+
+      return {
+        id: goal.id,
+        name: goal.name,
+        remaining,
+        progress,
+        eta,
+        months,
+        color: goal.color,
+      };
+    });
+
+    return {
+      items,
+      monthlyPerGoal,
+      monthlyBudget,
+    };
+  }, [goals, overflowCalc, monthlySurplus]);
+
+  const goalDelayMessage = (() => {
+    if (goalBreakdown.items.length === 0) {
+      return 'No active savings goals—channel every spare yen into the debt snowball first.';
+    }
+    if (debtFreedomTracker.items.length === 0) {
+      return 'Debt-free! Keep routing extra cash toward the next savings milestone.';
+    }
+    if (goalBreakdown.monthlyPerGoal === 0) {
+      return 'No overflow assigned to goals this month. Increase surplus or pause contributions until debt balances fall.';
+    }
+
+    const slowGoal = goalBreakdown.items.reduce<(typeof goalBreakdown.items)[number] | null>(
+      (current, item) => {
+        if (!current) return item;
+        const currentMonths = current.months ?? -1;
+        const itemMonths = item.months ?? -1;
+        if (itemMonths > currentMonths) {
+          return item;
+        }
+        return current;
+      },
+      null,
+    );
+
+    if (!slowGoal?.months || debtFreedomTracker.overallMonths == null) {
+      return `Funding plan synced. Keep auto-saving ${formatCurrency(goalBreakdown.monthlyPerGoal)} per goal.`;
+    }
+
+    const extraMonths = slowGoal.months - debtFreedomTracker.overallMonths;
+    if (extraMonths <= 0) {
+      return `All goals finish before debt freedom. Keep auto-saving ${formatCurrency(goalBreakdown.monthlyPerGoal)} per goal.`;
+    }
+
+    const extraWeeks = Math.max(1, Math.round(extraMonths * 4));
+    return `${slowGoal.name} would delay debt freedom by ~${extraWeeks} weeks at the current pace. Shift overflow back to debts once the essentials are funded.`;
+  })();
+
+  const showFreedomTracker =
+    debtFreedomTracker.items.length > 0 || goalBreakdown.items.length > 0;
+  const debtFreedomSummary = debtFreedomTracker.items.length > 0
+    ? debtFreedomTracker.overallDate
+      ? `Projected finish ${format(debtFreedomTracker.overallDate, 'MMM d, yyyy')}`
+      : 'Using current due dates as payoff milestones.'
+    : 'Add a debt or goal to unlock this view.';
+  const trackerInterestLabel =
+    debtFreedomTracker.totalInterest > 0
+      ? `Interest exposure ≈ ${formatCurrency(Math.round(debtFreedomTracker.totalInterest))}`
+      : null;
+  const averageDebtPayment =
+    debtFreedomTracker.items.length > 0
+      ? Math.round(
+          debtFreedomTracker.items.reduce((sum, item) => sum + item.payment, 0) /
+            debtFreedomTracker.items.length,
+        )
+      : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 pb-20 lg:pb-16">
@@ -597,6 +772,149 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {showFreedomTracker && (
+          <div className="mt-7 sm:mt-8 rounded-3xl border border-indigo-500/30 bg-gradient-to-br from-slate-950/95 via-slate-900/85 to-indigo-950/70 p-5 sm:p-6 lg:p-7 shadow-2xl">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-200/80">
+                  Strategy
+                </p>
+                <h3 className="text-xl font-semibold text-slate-50">Debt Freedom Tracker</h3>
+                <p className="text-sm text-slate-300">{debtFreedomSummary}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/50 bg-indigo-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-100">
+                  {debtFreedomTracker.items.length} debts
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/50 bg-indigo-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-100">
+                  {goalBreakdown.items.length} goals
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+                      Debt timeline
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Snowball assumes ¥{averageDebtPayment.toLocaleString()} per debt
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-emerald-200">
+                    {trackerInterestLabel ?? 'Focus on interest-heavy balances first.'}
+                  </p>
+                </div>
+                {debtFreedomTracker.items.length > 0 ? (
+                  <ul className="space-y-3">
+                    {debtFreedomTracker.items.map(item => (
+                      <li
+                        key={item.id}
+                        className="rounded-xl border border-slate-800/80 bg-slate-950/70 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-100">{item.name}</p>
+                            <p className="text-xs text-slate-400">
+                              Target {item.payoffDate ? formatDateForDisplay(item.payoffDate, 'MMM d, yyyy') : formatDateForDisplay(item.dueDate)} ·{' '}
+                              {item.months ? `≈${item.months} months` : 'follow due date'}
+                            </p>
+                          </div>
+                          <span className="text-sm font-semibold text-rose-200">
+                            {formatCurrency(item.amount)}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-400">
+                    Add an unpaid debt to see a payoff projection.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-800/70 bg-slate-950/50 p-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+                      Savings goals
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Funding ≈ {goalBreakdown.monthlyPerGoal > 0 ? formatCurrency(goalBreakdown.monthlyPerGoal) : '0'} per goal each month
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-200">
+                    {goalBreakdown.monthlyBudget > 0
+                      ? `Budgeted ${formatCurrency(goalBreakdown.monthlyBudget)}/mo`
+                      : 'Assign overflow to start funding goals'}
+                  </p>
+                </div>
+                {goalBreakdown.items.length > 0 ? (
+                  <ul className="space-y-3">
+                    {goalBreakdown.items.map(goal => (
+                      <li key={goal.id} className="rounded-xl border border-slate-800/80 bg-slate-950/70 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-100">{goal.name}</p>
+                            <p className="text-xs text-slate-400">
+                              {goal.eta
+                                ? `Fully funded by ${format(goal.eta, 'MMM yyyy')}`
+                                : 'Waiting on monthly overflow'}
+                            </p>
+                          </div>
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            {goal.months ? `≈${goal.months} mo` : 'On hold'}
+                          </span>
+                        </div>
+                        <div className="mt-2 h-2 w-full rounded-full bg-slate-800/80">
+                          <div
+                            className="h-2 rounded-full"
+                            style={{
+                              width: `${goal.progress}%`,
+                              backgroundColor: goal.color || '#f472b6',
+                            }}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {formatCurrency(goal.remaining)} to go
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-400">
+                    No open savings goals. Create one to keep momentum going.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/debts"
+                className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 transition hover:border-emerald-400 hover:bg-emerald-500/20"
+              >
+                Adjust plan
+              </Link>
+              <Link
+                href="/overflow"
+                className="inline-flex items-center gap-2 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-indigo-100 transition hover:border-indigo-400 hover:bg-indigo-500/20"
+              >
+                Review goals
+              </Link>
+            </div>
+
+            {goalDelayMessage && (
+              <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                {goalDelayMessage}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Quick Tip */}
         <div className="mt-7 sm:mt-8 bg-slate-900/80 rounded-2xl p-5 sm:p-6 lg:p-7 border border-slate-800/80">

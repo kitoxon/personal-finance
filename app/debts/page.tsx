@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
 import { storage, Debt } from '@/lib/storage';
@@ -20,6 +20,7 @@ import {
   CheckSquare,
   Square,
   X,
+  LineChart,
 } from 'lucide-react';
 import {
   addDays,
@@ -28,6 +29,8 @@ import {
   startOfDay,
 } from 'date-fns';
 import { formatDateForDisplay, parseAppDate } from '@/lib/datetime';
+import { DebtPlanModal } from '@/components/DebtPlanModal';
+import { DebtStrategyComparison } from '@/components/DebtStrategyComparison';
 
 const currencyFormatter = new Intl.NumberFormat('ja-JP', {
   style: 'currency',
@@ -44,10 +47,20 @@ const formStepLabels: Record<FormStep, string> = {
   schedule: 'Schedule',
 };
 
+const formatInterestLabel = (rate?: number | null) => {
+  if (rate === null || rate === undefined) {
+    return null;
+  }
+  const percent = Number((rate * 100).toFixed(2));
+  return `${percent}% APR`;
+};
+
 export default function DebtsPage() {
   const [amount, setAmount] = useState('');
   const [name, setName] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [interestRate, setInterestRate] = useState('');
+  const [planDebt, setPlanDebt] = useState<Debt | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,6 +96,16 @@ export default function DebtsPage() {
       (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
     );
   }, [debtsData]);
+
+  useEffect(() => {
+    if (!planDebt) return;
+    const next = debts.find(debt => debt.id === planDebt.id);
+    if (!next) {
+      setPlanDebt(null);
+    } else if (next !== planDebt) {
+      setPlanDebt(next);
+    }
+  }, [debts, planDebt]);
 
   const filteredDebts = useMemo(() => {
     const needle = searchTerm.trim().toLowerCase();
@@ -164,6 +187,7 @@ export default function DebtsPage() {
       setAmount('');
       setName('');
       setDueDate('');
+      setInterestRate('');
       setFormError(null);
       setListError(null);
       if (isFormSheetOpen) {
@@ -173,6 +197,15 @@ export default function DebtsPage() {
   });
 
   const updateDebtMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Debt> }) =>
+      storage.updateDebt(id, updates),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['debts'] });
+      setListError(null);
+    },
+  });
+
+  const updateDebtDetailsMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Debt> }) =>
       storage.updateDebt(id, updates),
     onSuccess: async () => {
@@ -245,6 +278,25 @@ export default function DebtsPage() {
     return true;
   };
 
+  const ensureInterestRateValid = () => {
+    if (!interestRate.trim()) {
+      return true;
+    }
+    const parsed = parseFloat(interestRate);
+    if (Number.isNaN(parsed) || parsed < 0 || parsed > 100) {
+      setFormError('Enter an interest rate between 0% and 100%.');
+      return false;
+    }
+    return true;
+  };
+
+  const parseInterestRateInput = () => {
+    if (!interestRate.trim()) return null;
+    const parsed = parseFloat(interestRate);
+    if (Number.isNaN(parsed)) return null;
+    return parsed / 100;
+  };
+
   const goToNextFormStep = () => {
     setFormError(null);
     if (formStep === 'amount' && !ensureAmountValid()) return;
@@ -265,9 +317,16 @@ export default function DebtsPage() {
     e.preventDefault();
     setFormError(null);
 
-    if (!ensureAmountValid() || !ensureNameValid() || !ensureDueDateValid()) {
+    if (
+      !ensureAmountValid() ||
+      !ensureNameValid() ||
+      !ensureDueDateValid() ||
+      !ensureInterestRateValid()
+    ) {
       return;
     }
+
+    const normalizedInterestRate = parseInterestRateInput();
 
     try {
       await saveDebtMutation.mutateAsync({
@@ -275,9 +334,22 @@ export default function DebtsPage() {
         amount: parseFloat(amount),
         dueDate,
         isPaid: false,
+        interestRate: normalizedInterestRate,
       });
     } catch {
       setFormError('We could not save that debt. Please try again.');
+    }
+  };
+
+  const handleSavePlanInterest = async (targetDebt: Debt, updatedRate: number | null) => {
+    try {
+      await updateDebtDetailsMutation.mutateAsync({
+        id: targetDebt.id,
+        updates: { interestRate: updatedRate },
+      });
+    } catch (error) {
+      setListError('Failed to update interest rate. Please refresh.');
+      throw error;
     }
   };
 
@@ -550,6 +622,10 @@ export default function DebtsPage() {
           </div>
         </div>
 
+        <div className="mb-8">
+          <DebtStrategyComparison debts={debts} currencyFormatter={currencyFormatter} />
+        </div>
+
         <div className="mb-8 grid gap-4 lg:grid-cols-[2fr_1fr]">
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 sm:p-6 shadow-lg">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -705,6 +781,24 @@ export default function DebtsPage() {
                 className="w-full rounded-xl border-2 border-slate-800 bg-slate-950/60 px-4 py-3 font-medium text-slate-100 focus:border-rose-500 focus:ring-2 focus:ring-rose-500 transition-all shadow-sm"
               />
             </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-200">
+                Interest rate (APR %)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={interestRate}
+                onChange={(e) => setInterestRate(e.target.value)}
+                placeholder="18"
+                className="w-full rounded-xl border-2 border-slate-800 bg-slate-950/60 px-4 py-3 font-medium text-slate-100 placeholder:text-slate-500 focus:border-rose-500 focus:bg-slate-950/80 focus:ring-2 focus:ring-rose-500 transition-all shadow-sm"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                Annual interest rate, enter 18 for 18%.
+              </p>
+            </div>
 
             <button
               type="submit"
@@ -767,12 +861,23 @@ export default function DebtsPage() {
                         <div className="flex flex-col">
                           <span className="font-semibold text-slate-100">{debt.name}</span>
                           <span className="text-xs text-slate-400">{dueLabel}</span>
+                          <span className="text-[11px] text-slate-500">
+                            {formatInterestLabel(debt.interestRate) ?? 'No rate set'}
+                          </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-rose-200">
                           {currencyFormatter.format(debt.amount)}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => setPlanDebt(debt)}
+                          className="rounded-lg p-1 text-rose-200 transition hover:bg-rose-500/10 hover:text-rose-100"
+                          aria-label="View payoff plan"
+                        >
+                          <LineChart size={18} />
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleTogglePaid(debt.id, debt.isPaid)}
@@ -838,6 +943,11 @@ export default function DebtsPage() {
                           <p className="mt-3 text-2xl font-bold text-rose-200">
                             {currencyFormatter.format(debt.amount)}
                           </p>
+                          <p className="text-xs text-slate-400">
+                            {formatInterestLabel(debt.interestRate)
+                              ? `Interest: ${formatInterestLabel(debt.interestRate)}`
+                              : 'Interest rate not set yet'}
+                          </p>
                         </div>
                       </div>
                       <button
@@ -859,6 +969,14 @@ export default function DebtsPage() {
                       >
                         <CheckCircle size={18} />
                         {updateDebtMutation.isPending ? 'Updating...' : 'Mark as paid'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPlanDebt(debt)}
+                        className="inline-flex items-center gap-2 rounded-full border border-rose-500/50 bg-rose-500/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-rose-100 transition hover:border-rose-400 hover:bg-rose-500/25"
+                      >
+                        <LineChart size={18} />
+                        View payoff plan
                       </button>
                     </div>
                   </div>
@@ -1077,6 +1195,24 @@ export default function DebtsPage() {
                         className="w-full rounded-xl	border-2 border-rose-500/40 bg-slate-950/80 px-4 py-3 font-medium text-slate-100 focus:border-rose-400 focus:ring-2 focus:ring-rose-400 transition-all shadow-sm"
                       />
                     </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-rose-100">
+                        Interest rate (APR %)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={interestRate}
+                        onChange={(e) => setInterestRate(e.target.value)}
+                        placeholder="18"
+                        className="w-full rounded-xl border-2 border-rose-500/40 bg-slate-950/80 px-4 py-3 font-medium text-slate-100 placeholder:text-rose-200/60 focus:border-rose-400 focus:ring-2 focus:ring-rose-400 transition-all shadow-sm"
+                      />
+                      <p className="mt-2 text-xs text-rose-200/70">
+                        Leave blank for 0% or enter 18 for 18% APR.
+                      </p>
+                    </div>
                     <p className="text-xs text-rose-200/80">
                       We’ll highlight this payment in your upcoming timeline and alert you when it’s close.
                     </p>
@@ -1122,6 +1258,16 @@ export default function DebtsPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {planDebt && (
+        <DebtPlanModal
+          debt={planDebt}
+          onClose={() => setPlanDebt(null)}
+          onSaveInterest={(rate) => handleSavePlanInterest(planDebt, rate)}
+          isSavingInterest={updateDebtDetailsMutation.isPending}
+          currencyFormatter={currencyFormatter}
+        />
       )}
     </div>
   );

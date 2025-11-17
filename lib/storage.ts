@@ -27,6 +27,7 @@ type DebtRow = {
   amount: number | string;
   due_date: string;
   is_paid: boolean;
+  interest_rate?: number | string | null;
   created_at?: string | null;
 };
 
@@ -53,6 +54,7 @@ export interface Debt {
   amount: number;
   dueDate: string;
   isPaid: boolean;
+  interestRate?: number | null;
   createdAt?: string;
 }
 type SavingsGoalRow = {
@@ -244,6 +246,10 @@ const mapDebtRow = (row: DebtRow): Debt => ({
   amount: Number(row.amount),
   dueDate: row.due_date,
   isPaid: Boolean(row.is_paid),
+  interestRate:
+    row.interest_rate === null || row.interest_rate === undefined
+      ? null
+      : Number(row.interest_rate),
   createdAt: row.created_at ?? undefined,
 });
 
@@ -470,6 +476,7 @@ export const storage = {
               amount: payload.amount,
               due_date: payload.dueDate,
               is_paid: payload.isPaid,
+              interest_rate: payload.interestRate ?? null,
             },
           ])
           .select('*')
@@ -489,6 +496,7 @@ export const storage = {
     const fallback: Debt = {
       id: generateLocalId(),
       ...payload,
+      interestRate: payload.interestRate ?? null,
       createdAt: new Date().toISOString(),
     };
     syncLocalAfterInsert(LOCAL_KEYS.debts, fallback);
@@ -503,6 +511,9 @@ export const storage = {
     if (updates.amount !== undefined) supabasePayload.amount = updates.amount;
     if (updates.dueDate !== undefined) supabasePayload.due_date = updates.dueDate;
     if (updates.isPaid !== undefined) supabasePayload.is_paid = updates.isPaid;
+    if (updates.interestRate !== undefined) {
+      supabasePayload.interest_rate = updates.interestRate;
+    }
 
     if (client && Object.keys(supabasePayload).length > 0) {
       try {
