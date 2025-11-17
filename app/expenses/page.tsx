@@ -47,6 +47,7 @@ import {
   startOfWeek,
   startOfYear,
   subDays,
+  subMonths,
 } from 'date-fns';
 import {
   DAY_KEY_FORMAT,
@@ -795,6 +796,54 @@ function ExpensesPageInner() {
     return days.size === 0 ? 0 : total / days.size;
   }, [expenses]);
 
+  const expensesByMonth = useMemo(() => {
+    const buckets = new Map<string, number>();
+    expenses.forEach(expense => {
+      const parsed = parseAppDate(expense.date);
+      if (!parsed) return;
+      const key = format(parsed, 'yyyy-MM');
+      buckets.set(key, (buckets.get(key) ?? 0) + expense.amount);
+    });
+    return buckets;
+  }, [expenses]);
+
+  const expenseTrendMonths = useMemo(() => {
+    const base = startOfMonth(new Date());
+    return Array.from({ length: 6 }, (_, index) => subMonths(base, 5 - index));
+  }, []);
+
+  const monthlySpendingTrend = useMemo(() => {
+    return expenseTrendMonths.map(referenceDate => {
+      const monthKey = format(referenceDate, 'yyyy-MM');
+      return {
+        monthKey,
+        label: format(referenceDate, 'MMM'),
+        total: expensesByMonth.get(monthKey) ?? 0,
+      };
+    });
+  }, [expenseTrendMonths, expensesByMonth]);
+
+  const spendingTrendMax = useMemo(
+    () => monthlySpendingTrend.reduce((max, point) => Math.max(max, point.total), 0),
+    [monthlySpendingTrend],
+  );
+
+  const currentSpendingLabel = monthlySpendingTrend.at(-1)?.label ?? format(new Date(), 'MMM');
+  const latestSpendingTotal = monthlySpendingTrend.at(-1)?.total ?? 0;
+  const previousSpendingTotal = monthlySpendingTrend.at(-2)?.total ?? 0;
+  const spendingDelta = latestSpendingTotal - previousSpendingTotal;
+  const spendingDeltaPercent =
+    previousSpendingTotal > 0 ? (spendingDelta / previousSpendingTotal) * 100 : null;
+  const spendingDeltaLabel = useMemo(() => {
+    if (spendingDelta === 0) {
+      return 'No change from last month';
+    }
+    const direction = spendingDelta > 0 ? 'Up' : 'Down';
+    const percentText =
+      spendingDeltaPercent !== null ? ` (${Math.abs(spendingDeltaPercent).toFixed(1)}%)` : '';
+    return `${direction} ${formatCurrency(Math.abs(spendingDelta))}${percentText}`;
+  }, [formatCurrency, spendingDelta, spendingDeltaPercent]);
+
   const quickAmounts = [1000, 2500, 5000, 10000];
 
   const trailPalette = [
@@ -930,6 +979,48 @@ function ExpensesPageInner() {
             <p className="text-xs uppercase tracking-widest text-slate-500">Daily average</p>
             <p className="mt-1 text-2xl font-semibold text-amber-200">{formatCurrency(Math.round(averageSpend))}</p>
           </div>
+        </div>
+
+        <div className="mb-8 rounded-2xl border border-amber-500/20 bg-slate-900/80 p-5 sm:p-6 shadow-lg">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-100">Monthly spending trend</h3>
+              <p className="text-sm text-slate-400">Track the last six months at a glance.</p>
+            </div>
+            <div className="rounded-xl border border-slate-800/70 bg-slate-950/50 px-3 py-2 text-right">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                This month ({currentSpendingLabel})
+              </p>
+              <p className="text-lg font-semibold text-amber-200">
+                {formatCurrency(latestSpendingTotal)}
+              </p>
+              <p className="text-xs text-slate-400">{spendingDeltaLabel}</p>
+            </div>
+          </div>
+          <div className="mt-5 flex h-40 items-end gap-2 sm:gap-3">
+            {monthlySpendingTrend.map(point => {
+              const height =
+                spendingTrendMax > 0 ? Math.max(12, (point.total / spendingTrendMax) * 100) : 0;
+              return (
+                <div key={point.monthKey} className="flex flex-1 h-full flex-col items-center gap-2">
+                  <div className="flex h-full w-full max-w-[40px] items-end rounded-2xl border border-amber-500/40 bg-slate-950/40 p-0.5">
+                    <div
+                      className="w-full rounded-xl bg-gradient-to-t from-amber-600 via-amber-400 to-rose-400 transition-[height]"
+                      style={{ height: `${height}%` }}
+                      title={`${point.label}: ${formatCurrency(point.total)}`}
+                    />
+                  </div>
+                  <div className="flex flex-col items-center text-center text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    <span>{point.label}</span>
+                    <span className="text-[10px] text-amber-200">{formatCurrency(point.total)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Use this trend to spot rising categories before they impact your budget.
+          </p>
         </div>
 
         <SyncStatus

@@ -154,14 +154,14 @@ export function DebtPlanModal({
       : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 relative">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/80 px-4 py-6">
       <div
         className="absolute inset-0 z-0 cursor-default"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative z-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800/80 px-6 py-4">
+      <div className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl flex flex-col">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-800/80 px-6 py-4">
           <div>
             <p className="text-xs uppercase tracking-widest text-slate-400">Payoff plan</p>
             <h3 className="text-xl font-semibold text-slate-100">{debt.name}</h3>
@@ -180,7 +180,7 @@ export function DebtPlanModal({
           </button>
         </div>
 
-        <div className="space-y-6 p-6">
+        <div className="flex-1 space-y-6 overflow-y-auto p-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-4">
               <div className="flex items-center justify-between">

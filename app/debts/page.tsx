@@ -21,6 +21,7 @@ import {
   Square,
   X,
   LineChart,
+  Pencil,
 } from 'lucide-react';
 import {
   addDays,
@@ -61,6 +62,7 @@ export default function DebtsPage() {
   const [dueDate, setDueDate] = useState('');
   const [interestRate, setInterestRate] = useState('');
   const [planDebt, setPlanDebt] = useState<Debt | null>(null);
+  const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -184,14 +186,10 @@ export default function DebtsPage() {
     mutationFn: storage.saveDebt,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['debts'] });
-      setAmount('');
-      setName('');
-      setDueDate('');
-      setInterestRate('');
-      setFormError(null);
+      resetFormState();
       setListError(null);
       if (isFormSheetOpen) {
-        closeFormSheet();
+        setIsFormSheetOpen(false);
       }
     },
   });
@@ -222,16 +220,23 @@ export default function DebtsPage() {
     },
   });
 
-  const openFormSheet = (step: FormStep = 'amount') => {
+  const isDebtFormSubmitting = editingDebt
+    ? updateDebtDetailsMutation.isPending
+    : saveDebtMutation.isPending;
+
+  const resetFormState = () => {
+    setAmount('');
+    setName('');
+    setDueDate('');
+    setInterestRate('');
     setFormError(null);
-    setFormStep(step);
-    setIsFormSheetOpen(true);
+    setFormStep('amount');
+    setEditingDebt(null);
   };
 
   const closeFormSheet = () => {
     setIsFormSheetOpen(false);
-    setFormError(null);
-    setFormStep('amount');
+    resetFormState();
   };
 
   const toggleSelected = (id: string) => {
@@ -244,6 +249,28 @@ export default function DebtsPage() {
       }
       return next;
     });
+  };
+
+  const startEditingDebt = (debt: Debt) => {
+    setEditingDebt(debt);
+    setAmount(String(debt.amount));
+    setName(debt.name);
+    const parsedDue = parseAppDate(debt.dueDate);
+    const normalizedDueDate = parsedDue ? format(parsedDue, 'yyyy-MM-dd') : debt.dueDate;
+    setDueDate(normalizedDueDate);
+    setInterestRate(
+      debt.interestRate !== null && debt.interestRate !== undefined
+        ? String(Number((debt.interestRate * 100).toFixed(2)))
+        : '',
+    );
+    setFormError(null);
+    setFormStep('amount');
+    setIsFormSheetOpen(true);
+  };
+
+  const cancelEditing = () => {
+    resetFormState();
+    setIsFormSheetOpen(false);
   };
 
   const clearSelection = () => {
@@ -328,10 +355,47 @@ export default function DebtsPage() {
 
     const normalizedInterestRate = parseInterestRateInput();
 
+    const parsedAmount = parseFloat(amount);
+
+    if (editingDebt) {
+      const existingDueDateParsed = parseAppDate(editingDebt.dueDate);
+      const existingDueDateNormalized = existingDueDateParsed
+        ? format(existingDueDateParsed, 'yyyy-MM-dd')
+        : editingDebt.dueDate;
+      const existingInterestRate = editingDebt.interestRate ?? null;
+      const hasChanges =
+        name.trim() !== editingDebt.name ||
+        parsedAmount !== editingDebt.amount ||
+        normalizedInterestRate !== existingInterestRate ||
+        dueDate !== existingDueDateNormalized;
+
+      if (!hasChanges) {
+        setFormError('Make a change before saving.');
+        return;
+      }
+
+      try {
+        await updateDebtDetailsMutation.mutateAsync({
+          id: editingDebt.id,
+          updates: {
+            name: name.trim(),
+            amount: parsedAmount,
+            dueDate,
+            interestRate: normalizedInterestRate,
+          },
+        });
+        resetFormState();
+        setIsFormSheetOpen(false);
+      } catch {
+        setFormError('We could not update that debt. Please try again.');
+      }
+      return;
+    }
+
     try {
       await saveDebtMutation.mutateAsync({
         name: name.trim(),
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         dueDate,
         isPaid: false,
         interestRate: normalizedInterestRate,
@@ -699,8 +763,10 @@ export default function DebtsPage() {
                   key={value}
                   type="button"
                   onClick={() => {
+                    resetFormState();
                     setAmount(String(value));
-                    openFormSheet('details');
+                    setFormStep('details');
+                    setIsFormSheetOpen(true);
                   }}
                   className="rounded-full border border-rose-500/50 bg-rose-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-rose-100 transition hover:border-rose-400 hover:bg-rose-400/30"
                 >
@@ -710,7 +776,10 @@ export default function DebtsPage() {
             </div>
             <button
               type="button"
-              onClick={() => openFormSheet('amount')}
+              onClick={() => {
+                resetFormState();
+                setIsFormSheetOpen(true);
+              }}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-500/40 bg-rose-500/20 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-rose-100 transition hover:border-rose-400 hover:bg-rose-400/30"
             >
               <PlusCircle size={16} />
@@ -725,10 +794,22 @@ export default function DebtsPage() {
         >
           <h2 className="mb-5 flex items-center gap-3 text-lg font-bold text-slate-100">
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/30 text-rose-200 shadow-md">
-              <PlusCircle size={18} className="text-rose-100" />
+              {editingDebt ? <Pencil size={18} className="text-rose-100" /> : <PlusCircle size={18} className="text-rose-100" />}
             </span>
-            <span>Add New Debt</span>
+            <span>{editingDebt ? 'Edit Debt' : 'Add New Debt'}</span>
           </h2>
+          {editingDebt && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+              <span>Editing {editingDebt.name}</span>
+              <button
+                type="button"
+                onClick={cancelEditing}
+                className="rounded-full border border-amber-500/40 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-100 transition hover:border-amber-300 hover:text-amber-50"
+              >
+                Cancel edit
+              </button>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div>
@@ -802,11 +883,15 @@ export default function DebtsPage() {
 
             <button
               type="submit"
-              disabled={saveDebtMutation.isPending}
+              disabled={isDebtFormSubmitting}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 py-4 font-bold text-slate-950 shadow-lg transition-all hover:from-rose-400 hover:to-amber-400 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <PlusCircle size={20} className="text-slate-950" />
-              {saveDebtMutation.isPending ? 'Saving...' : 'Add Debt'}
+              {editingDebt ? <Pencil size={20} className="text-slate-950" /> : <PlusCircle size={20} className="text-slate-950" />}
+              {isDebtFormSubmitting
+                ? 'Saving...'
+                : editingDebt
+                ? 'Update Debt'
+                : 'Add Debt'}
             </button>
             {formError && <p className="text-sm font-medium text-rose-300">{formError}</p>}
           </div>
@@ -877,6 +962,14 @@ export default function DebtsPage() {
                           aria-label="View payoff plan"
                         >
                           <LineChart size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startEditingDebt(debt)}
+                          className="rounded-lg p-1 text-slate-200 transition hover:bg-slate-500/10 hover:text-slate-50"
+                          aria-label="Edit debt"
+                        >
+                          <Pencil size={18} />
                         </button>
                         <button
                           type="button"
@@ -969,6 +1062,14 @@ export default function DebtsPage() {
                       >
                         <CheckCircle size={18} />
                         {updateDebtMutation.isPending ? 'Updating...' : 'Mark as paid'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEditingDebt(debt)}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-rose-400 hover:text-rose-100"
+                      >
+                        <Pencil size={18} />
+                        Edit
                       </button>
                       <button
                         type="button"
@@ -1098,7 +1199,7 @@ export default function DebtsPage() {
                     Step {currentFormStepIndex + 1} of {formSteps.length}
                   </p>
                   <h2 className="text-lg font-semibold text-slate-100">
-                    New debt · {formStepLabels[formStep]}
+                    {editingDebt ? 'Edit debt' : 'New debt'} · {formStepLabels[formStep]}
                   </h2>
                 </div>
                 <button
@@ -1110,6 +1211,18 @@ export default function DebtsPage() {
                   <X size={16} />
                 </button>
               </div>
+              {editingDebt && (
+                <div className="flex items-center justify-between rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-100">
+                  <span>Editing {editingDebt.name}</span>
+                  <button
+                    type="button"
+                    onClick={cancelEditing}
+                    className="rounded-full border border-amber-400/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-100 transition hover:border-amber-300 hover:text-amber-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
 
               <div className="flex items-center gap-2">
                 {formSteps.map((step, index) => (
@@ -1239,11 +1352,15 @@ export default function DebtsPage() {
                 {isLastFormStep ? (
                   <button
                     type="submit"
-                    disabled={saveDebtMutation.isPending}
+                    disabled={isDebtFormSubmitting}
                     className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 shadow-md transition hover:from-rose-400 hover:to-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <PlusCircle size={16} />
-                    {saveDebtMutation.isPending ? 'Saving...' : 'Save debt'}
+                    {editingDebt ? <Pencil size={16} /> : <PlusCircle size={16} />}
+                    {isDebtFormSubmitting
+                      ? 'Saving...'
+                      : editingDebt
+                      ? 'Update debt'
+                      : 'Save debt'}
                   </button>
                 ) : (
                   <button

@@ -211,6 +211,35 @@ export default function IncomePage() {
 
   const incomeDeltaLabel = describeDelta(incomeDelta, incomeDeltaPercent);
 
+  const expectedMonthlyIncome = budgetSettingsQuery.data?.monthlyIncome ?? 0;
+  const hasIncomeTarget = expectedMonthlyIncome > 0;
+  const incomeProgressPercent = hasIncomeTarget
+    ? Math.min(100, (currentMonthTotal / expectedMonthlyIncome) * 100)
+    : null;
+  const incomeProgressLabel = hasIncomeTarget
+    ? `${formatCurrency(currentMonthTotal)} of ${formatCurrency(expectedMonthlyIncome)}`
+    : 'Set a monthly income target in Settings to track expectations.';
+  const incomeProgressStatus =
+    hasIncomeTarget && incomeProgressPercent !== null
+      ? incomeProgressPercent >= 100
+        ? 'Target met'
+        : `${Math.floor(incomeProgressPercent)}% of target`
+      : 'No target set';
+
+  const recurringTemplates = useMemo(() => {
+    const seen = new Set<string>();
+    const templates: Array<{ source: string; amount: number }> = [];
+    incomes.forEach(entry => {
+      if (seen.has(entry.source)) return;
+      templates.push({ source: entry.source, amount: entry.amount });
+      seen.add(entry.source);
+      if (templates.length >= 3) {
+        return;
+      }
+    });
+    return templates;
+  }, [incomes]);
+
   const activeFilterChips = useMemo(
     () =>
       searchTerm.trim().length > 0
@@ -252,6 +281,27 @@ export default function IncomePage() {
             <p className="text-xs uppercase tracking-widest text-slate-500">Entries logged</p>
             <p className="mt-1 text-2xl font-semibold text-emerald-200">{incomes.length}</p>
           </div>
+        </div>
+
+        <div className="mb-8 rounded-2xl border border-emerald-500/30 bg-slate-900/80 p-5 sm:p-6 shadow-lg">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-100">Expected vs actual</h3>
+              <p className="text-sm text-slate-400">
+                Track progress toward your monthly income target.
+              </p>
+            </div>
+            <div className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-100">
+              {incomeProgressStatus}
+            </div>
+          </div>
+          <div className="mt-4 h-3 w-full rounded-full bg-slate-800/60">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-[width]"
+              style={{ width: `${incomeProgressPercent ?? 0}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-slate-400">{incomeProgressLabel}</p>
         </div>
 
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -484,6 +534,34 @@ export default function IncomePage() {
               </button>
             ))}
           </div>
+          {recurringTemplates.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs uppercase tracking-widest text-emerald-200/90">Recurring sources</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {recurringTemplates.map(template => (
+                  <button
+                    key={template.source}
+                    type="button"
+                    onClick={() => {
+                      setSource(template.source);
+                      setAmount(String(template.amount));
+                      setMonth(format(new Date(), 'yyyy-MM'));
+                      openFormSheet();
+                    }}
+                    className="rounded-full border border-emerald-400/50 bg-emerald-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-400/30"
+                  >
+                    {template.source}
+                    <span className="ml-1 text-emerald-200/80">
+                      {currencyFormatter.format(template.amount)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[11px] text-emerald-200/70">
+                Prefills the amount, source, and current month.
+              </p>
+            </div>
+          )}
         </div>
 
         <form
@@ -535,6 +613,27 @@ export default function IncomePage() {
                 placeholder="Salary, Bonus, Freelance, etc."
                 className="w-full rounded-xl border-2 border-slate-800 bg-slate-950/60 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500 transition-all shadow-sm"
               />
+              {recurringTemplates.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-emerald-200/70">
+                  {recurringTemplates.map(template => (
+                    <button
+                      key={template.source}
+                      type="button"
+                      onClick={() => {
+                        setSource(template.source);
+                        setAmount(String(template.amount));
+                        setMonth(format(new Date(), 'yyyy-MM'));
+                      }}
+                      className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 font-semibold uppercase tracking-wide transition hover:border-emerald-400 hover:bg-emerald-400/30"
+                    >
+                      {template.source}
+                      <span className="ml-1 text-emerald-200/80">
+                        {currencyFormatter.format(template.amount)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
@@ -704,16 +803,23 @@ export default function IncomePage() {
                       placeholder="Salary, Bonus, Freelance, etc."
                       className="w-full rounded-xl border-2 border-emerald-500/40 bg-slate-950/80 px-4 py-3 text-slate-100 placeholder:text-emerald-200/60 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400 transition-all shadow-sm"
                     />
-                    {topSources.length > 0 && (
+                    {recurringTemplates.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-emerald-200/70">
-                        {topSources.map(([label]) => (
+                        {recurringTemplates.map(template => (
                           <button
-                            key={label}
+                            key={template.source}
                             type="button"
-                            onClick={() => setSource(label)}
+                            onClick={() => {
+                              setSource(template.source);
+                              setAmount(String(template.amount));
+                              setMonth(format(new Date(), 'yyyy-MM'));
+                            }}
                             className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 font-semibold uppercase tracking-wide transition hover:border-emerald-400 hover:bg-emerald-400/30"
                           >
-                            {label}
+                            {template.source}
+                            <span className="ml-1 text-emerald-200/80">
+                              {currencyFormatter.format(template.amount)}
+                            </span>
                           </button>
                         ))}
                       </div>
