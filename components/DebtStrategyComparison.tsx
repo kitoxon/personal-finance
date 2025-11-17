@@ -13,6 +13,10 @@ import {
 interface DebtStrategyComparisonProps {
   debts: Debt[];
   currencyFormatter: Intl.NumberFormat;
+  defaultBudget?: number | null;
+  defaultStrategy?: DebtPayoffStrategy | null;
+  onSaveDefaults?: (budget: number, strategy: DebtPayoffStrategy) => void | Promise<void>;
+  isSavingDefaults?: boolean;
 }
 
 const STRATEGY_LABELS: Record<DebtPayoffStrategy, string> = {
@@ -100,26 +104,52 @@ const StrategyCard = ({
 export function DebtStrategyComparison({
   debts,
   currencyFormatter,
+  defaultBudget,
+  defaultStrategy,
+  onSaveDefaults,
+  isSavingDefaults,
 }: DebtStrategyComparisonProps) {
   const unpaidDebts = useMemo(() => debts.filter(debt => !debt.isPaid && debt.amount > 0), [debts]);
   const totalUnpaid = useMemo(
     () => unpaidDebts.reduce((sum, debt) => sum + debt.amount, 0),
     [unpaidDebts],
   );
-  const defaultBudget = useMemo(() => {
+  const computedDefaultBudget = useMemo(() => {
     if (unpaidDebts.length === 0) {
       return 0;
     }
     return Math.max(5000, Math.round(totalUnpaid / Math.max(1, unpaidDebts.length)));
   }, [totalUnpaid, unpaidDebts.length]);
 
-  const [monthlyBudget, setMonthlyBudget] = useState(() => (defaultBudget ? String(defaultBudget) : '0'));
+  const initialBudget = defaultBudget && defaultBudget > 0 ? defaultBudget : computedDefaultBudget;
+
+  const [monthlyBudget, setMonthlyBudget] = useState(() =>
+    initialBudget ? String(initialBudget) : '0',
+  );
+  const [strategyPreference, setStrategyPreference] = useState<DebtPayoffStrategy>(
+    defaultStrategy ?? 'snowball',
+  );
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
 
   useEffect(() => {
-    if (defaultBudget > 0) {
+    if (defaultBudget && defaultBudget > 0) {
       setMonthlyBudget(String(defaultBudget));
+    } else if (computedDefaultBudget > 0) {
+      setMonthlyBudget(String(computedDefaultBudget));
     }
-  }, [defaultBudget]);
+  }, [defaultBudget, computedDefaultBudget]);
+
+  useEffect(() => {
+    if (defaultStrategy) {
+      setStrategyPreference(defaultStrategy);
+    }
+  }, [defaultStrategy]);
+
+  useEffect(() => {
+    if (!saveFeedback) return;
+    const timer = setTimeout(() => setSaveFeedback(null), 4000);
+    return () => clearTimeout(timer);
+  }, [saveFeedback]);
 
   const hasDebts = hasActiveDebts(debts);
 
@@ -130,6 +160,9 @@ export function DebtStrategyComparison({
       : null;
   const sliderMin = 1000;
   const sliderMax = Math.max(sliderMin, Math.ceil(totalUnpaid / 2) || sliderMin * 10);
+  const resolvedBudgetValue = Number.isFinite(parsedBudget)
+    ? parsedBudget
+    : initialBudget || sliderMin;
 
   const comparison = useMemo(() => {
     if (!hasDebts || budgetError || unpaidDebts.length === 0) {
@@ -160,6 +193,18 @@ export function DebtStrategyComparison({
   if (!hasDebts) {
     return null;
   }
+
+  const canPersistDefaults = Boolean(onSaveDefaults) && !budgetError;
+
+  const handleSaveDefaultsClick = async () => {
+    if (!onSaveDefaults || budgetError) return;
+    try {
+      await onSaveDefaults(resolvedBudgetValue, strategyPreference);
+      setSaveFeedback('Defaults saved');
+    } catch {
+      setSaveFeedback('Unable to save defaults.');
+    }
+  };
 
   return (
     <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-5 sm:p-6 shadow-xl">
@@ -212,11 +257,47 @@ export function DebtStrategyComparison({
             />
             <button
               type="button"
-              onClick={() => setMonthlyBudget(String(defaultBudget || sliderMin))}
+              onClick={() => setMonthlyBudget(String(initialBudget || sliderMin))}
               className="rounded-full border border-slate-700/60 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300 transition hover:border-rose-400 hover:text-rose-100"
             >
               Use suggestion
             </button>
+          </div>
+          <div className="rounded-xl border border-slate-800/60 bg-slate-950/60 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Your default strategy
+            </p>
+            <div className="mt-2 inline-flex rounded-xl border border-slate-800/60 bg-slate-950/60 p-1">
+              {(['snowball', 'avalanche'] as const).map(option => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setStrategyPreference(option)}
+                  className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wide rounded-lg transition ${
+                    strategyPreference === option
+                      ? 'bg-rose-500/20 text-rose-100 border border-rose-400/60 shadow-inner'
+                      : 'text-slate-300 hover:text-rose-100'
+                  }`}
+                >
+                  {STRATEGY_LABELS[option]}
+                </button>
+              ))}
+            </div>
+            {onSaveDefaults && (
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveDefaultsClick}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-500/50 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-100 transition hover:border-emerald-400 hover:bg-emerald-400/20 disabled:opacity-40"
+                  disabled={!canPersistDefaults || Boolean(isSavingDefaults)}
+                >
+                  {isSavingDefaults ? 'Saving…' : 'Save as default'}
+                </button>
+                {saveFeedback && (
+                  <span className="text-xs font-semibold text-emerald-200">{saveFeedback}</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

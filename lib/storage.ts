@@ -29,6 +29,7 @@ type DebtRow = {
   is_paid: boolean;
   interest_rate?: number | string | null;
   created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export interface Expense {
@@ -56,6 +57,7 @@ export interface Debt {
   isPaid: boolean;
   interestRate?: number | null;
   createdAt?: string;
+  updatedAt?: string;
 }
 type SavingsGoalRow = {
   id: string;
@@ -91,6 +93,8 @@ type BudgetSettingsRow = {
   currency_code?: string | null;
   currency_locale?: string | null;
   expense_categories?: string[] | null;
+  debt_monthly_budget?: number | string | null;
+  debt_strategy_preference?: 'snowball' | 'avalanche' | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -127,6 +131,8 @@ export interface BudgetSettings {
   currencyCode: string;
   currencyLocale: string;
   expenseCategories: string[];
+  debtMonthlyBudget: number;
+  debtStrategyPreference: 'snowball' | 'avalanche';
 }
 export const DEFAULT_CURRENCY_CODE = 'JPY';
 export const DEFAULT_CURRENCY_LOCALE = 'ja-JP';
@@ -222,6 +228,8 @@ const mapBudgetSettingsRow = (row: BudgetSettingsRow): BudgetSettings => ({
   expenseCategories: (row.expense_categories && row.expense_categories.length > 0
     ? row.expense_categories
     : Array.from(DEFAULT_EXPENSE_CATEGORIES)) as string[],
+  debtMonthlyBudget: Number(row.debt_monthly_budget ?? 0),
+  debtStrategyPreference: row.debt_strategy_preference ?? 'snowball',
 });
 const mapExpenseRow = (row: ExpenseRow): Expense => ({
   id: row.id,
@@ -498,6 +506,7 @@ export const storage = {
       ...payload,
       interestRate: payload.interestRate ?? null,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     syncLocalAfterInsert(LOCAL_KEYS.debts, fallback);
     return fallback;
@@ -524,7 +533,8 @@ export const storage = {
       }
     }
 
-    updateLocalRecord<Debt>(LOCAL_KEYS.debts, id, debt => ({ ...debt, ...updates }));
+    const updatedAt = new Date().toISOString();
+    updateLocalRecord<Debt>(LOCAL_KEYS.debts, id, debt => ({ ...debt, ...updates, updatedAt }));
   },
 
   async deleteDebt(id: string): Promise<void> {
@@ -763,6 +773,8 @@ export const storage = {
       currencyCode: DEFAULT_CURRENCY_CODE,
       currencyLocale: DEFAULT_CURRENCY_LOCALE,
       expenseCategories: Array.from(DEFAULT_EXPENSE_CATEGORIES),
+      debtMonthlyBudget: 0,
+      debtStrategyPreference: 'snowball',
     };
 
     if (client) {
@@ -795,6 +807,12 @@ export const storage = {
           stored.expenseCategories && stored.expenseCategories.length > 0
             ? stored.expenseCategories
             : defaultSettings.expenseCategories,
+        debtMonthlyBudget:
+          typeof stored.debtMonthlyBudget === 'number'
+            ? stored.debtMonthlyBudget
+            : defaultSettings.debtMonthlyBudget,
+        debtStrategyPreference:
+          stored.debtStrategyPreference ?? defaultSettings.debtStrategyPreference,
       };
     }
     return defaultSettings;
@@ -821,6 +839,8 @@ export const storage = {
           currency_code: settings.currencyCode,
           currency_locale: settings.currencyLocale,
           expense_categories: settings.expenseCategories,
+          debt_monthly_budget: settings.debtMonthlyBudget,
+          debt_strategy_preference: settings.debtStrategyPreference,
           updated_at: new Date().toISOString(),
         };
 

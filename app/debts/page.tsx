@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
 import { storage, Debt } from '@/lib/storage';
+import type { BudgetSettings } from '@/lib/storage';
 import {
   PlusCircle,
   Trash2,
@@ -22,16 +23,19 @@ import {
   X,
   LineChart,
   Pencil,
+  BadgeDollarSign,
 } from 'lucide-react';
 import {
   addDays,
   differenceInCalendarDays,
   format,
+  formatDistanceToNow,
   startOfDay,
 } from 'date-fns';
 import { formatDateForDisplay, parseAppDate } from '@/lib/datetime';
 import { DebtPlanModal } from '@/components/DebtPlanModal';
 import { DebtStrategyComparison } from '@/components/DebtStrategyComparison';
+import type { DebtPayoffStrategy } from '@/lib/debtStrategy';
 
 const currencyFormatter = new Intl.NumberFormat('ja-JP', {
   style: 'currency',
@@ -55,6 +59,8 @@ const formatInterestLabel = (rate?: number | null) => {
   const percent = Number((rate * 100).toFixed(2));
   return `${percent}% APR`;
 };
+
+const QUICK_PAYMENT_DEFAULT = 50000;
 
 export default function DebtsPage() {
   const [amount, setAmount] = useState('');
@@ -91,6 +97,10 @@ export default function DebtsPage() {
   } = useQuery({
     queryKey: ['debts'],
     queryFn: () => storage.getDebts(),
+  });
+  const budgetSettingsQuery = useQuery({
+    queryKey: ['budgetSettings'],
+    queryFn: () => storage.getBudgetSettings(),
   });
 
   const debts = useMemo<Debt[]>(() => {
@@ -219,6 +229,26 @@ export default function DebtsPage() {
       setListError(null);
     },
   });
+  const saveStrategyDefaultsMutation = useMutation({
+    mutationFn: async ({
+      budget,
+      strategy,
+      baseSettings,
+    }: {
+      budget: number;
+      strategy: DebtPayoffStrategy;
+      baseSettings: BudgetSettings;
+    }) => {
+      await storage.saveBudgetSettings({
+        ...baseSettings,
+        debtMonthlyBudget: budget,
+        debtStrategyPreference: strategy,
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['budgetSettings'] });
+    },
+  });
 
   const isDebtFormSubmitting = editingDebt
     ? updateDebtDetailsMutation.isPending
@@ -271,6 +301,15 @@ export default function DebtsPage() {
   const cancelEditing = () => {
     resetFormState();
     setIsFormSheetOpen(false);
+  };
+
+  const handleSaveStrategyDefaults = (budget: number, strategy: DebtPayoffStrategy) => {
+    if (!budgetSettingsQuery.data) return;
+    saveStrategyDefaultsMutation.mutate({
+      budget,
+      strategy,
+      baseSettings: budgetSettingsQuery.data,
+    });
   };
 
   const clearSelection = () => {
@@ -402,6 +441,42 @@ export default function DebtsPage() {
       });
     } catch {
       setFormError('We could not save that debt. Please try again.');
+    }
+  };
+
+  const getLastUpdatedText = (debt: Debt) => {
+    const source = debt.updatedAt ?? debt.createdAt;
+    if (!source) return null;
+    const parsed = parseAppDate(source);
+    if (!parsed) return null;
+    return formatDistanceToNow(parsed, { addSuffix: true });
+  };
+
+  const handleQuickPayment = async (debt: Debt) => {
+    if (debt.amount <= 0) return;
+    const suggested = Math.min(debt.amount, QUICK_PAYMENT_DEFAULT);
+    const input = window.prompt(
+      'How much did you pay?',
+      suggested > 0 ? String(Math.round(suggested)) : '',
+    );
+    if (input === null) return;
+    const parsed = parseFloat(input);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      alert('Enter a payment amount greater than zero.');
+      return;
+    }
+    const nextAmount = Math.max(0, debt.amount - parsed);
+    if (nextAmount === debt.amount) {
+      alert('The payment did not change the balance.');
+      return;
+    }
+    try {
+      await updateDebtDetailsMutation.mutateAsync({
+        id: debt.id,
+        updates: { amount: nextAmount },
+      });
+    } catch {
+      setListError('Failed to apply quick payment. Please try again.');
     }
   };
 
@@ -687,7 +762,14 @@ export default function DebtsPage() {
         </div>
 
         <div className="mb-8">
-          <DebtStrategyComparison debts={debts} currencyFormatter={currencyFormatter} />
+          <DebtStrategyComparison
+            debts={debts}
+            currencyFormatter={currencyFormatter}
+            defaultBudget={budgetSettingsQuery.data?.debtMonthlyBudget}
+            defaultStrategy={budgetSettingsQuery.data?.debtStrategyPreference}
+            onSaveDefaults={handleSaveStrategyDefaults}
+            isSavingDefaults={saveStrategyDefaultsMutation.isPending}
+          />
         </div>
 
         <div className="mb-8 grid gap-4 lg:grid-cols-[2fr_1fr]">
@@ -949,6 +1031,11 @@ export default function DebtsPage() {
                           <span className="text-[11px] text-slate-500">
                             {formatInterestLabel(debt.interestRate) ?? 'No rate set'}
                           </span>
+                          {getLastUpdatedText(debt) && (
+                            <span className="text-[11px] text-slate-600">
+                              Updated {getLastUpdatedText(debt)}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -970,6 +1057,15 @@ export default function DebtsPage() {
                           aria-label="Edit debt"
                         >
                           <Pencil size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickPayment(debt)}
+                          className="rounded-lg p-1 text-amber-200 transition hover:bg-amber-500/10 hover:text-amber-100 disabled:opacity-40"
+                          aria-label="Apply quick payment"
+                          disabled={updateDebtDetailsMutation.isPending}
+                        >
+                          <BadgeDollarSign size={18} />
                         </button>
                         <button
                           type="button"
@@ -1041,6 +1137,11 @@ export default function DebtsPage() {
                               ? `Interest: ${formatInterestLabel(debt.interestRate)}`
                               : 'Interest rate not set yet'}
                           </p>
+                          {getLastUpdatedText(debt) && (
+                            <p className="text-xs text-slate-500">
+                              Updated {getLastUpdatedText(debt)}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <button
@@ -1070,6 +1171,15 @@ export default function DebtsPage() {
                       >
                         <Pencil size={18} />
                         Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickPayment(debt)}
+                        className="inline-flex items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-amber-100 transition hover:border-amber-400 hover:bg-amber-400/30 disabled:opacity-40"
+                        disabled={updateDebtDetailsMutation.isPending}
+                      >
+                        <BadgeDollarSign size={18} />
+                        Quick pay
                       </button>
                       <button
                         type="button"
@@ -1127,6 +1237,11 @@ export default function DebtsPage() {
                           <p className="mt-3 text-xl font-bold text-slate-200 line-through">
                             {currencyFormatter.format(debt.amount)}
                           </p>
+                          {getLastUpdatedText(debt) && (
+                            <p className="text-xs text-slate-500">
+                              Updated {getLastUpdatedText(debt)}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <button

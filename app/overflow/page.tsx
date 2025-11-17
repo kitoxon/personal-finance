@@ -50,6 +50,8 @@ export default function CashOverflowPage() {
   const [currencyLocale, setCurrencyLocale] = useState(DEFAULT_CURRENCY_LOCALE);
   const [expenseCategories, setExpenseCategories] = useState<string[]>(Array.from(DEFAULT_EXPENSE_CATEGORIES));
   const [newCategory, setNewCategory] = useState('');
+  const [debtMonthlyBudget, setDebtMonthlyBudget] = useState('');
+  const [debtStrategyPreference, setDebtStrategyPreference] = useState<'snowball' | 'avalanche'>('snowball');
 
   const queryClient = useQueryClient();
 
@@ -93,6 +95,8 @@ export default function CashOverflowPage() {
           : Array.from(DEFAULT_EXPENSE_CATEGORIES),
       );
       setNewCategory('');
+      setDebtMonthlyBudget(settings.debtMonthlyBudget.toString());
+      setDebtStrategyPreference(settings.debtStrategyPreference ?? 'snowball');
     }
   }, [settings]);
 
@@ -221,6 +225,8 @@ export default function CashOverflowPage() {
         sanitizedCategories.length > 0
           ? sanitizedCategories
           : Array.from(DEFAULT_EXPENSE_CATEGORIES),
+      debtMonthlyBudget: parseFloat(debtMonthlyBudget) || 0,
+      debtStrategyPreference,
     };
 
     updateSettingsMutation.mutate(newSettings);
@@ -566,6 +572,45 @@ export default function CashOverflowPage() {
                   inputMode="numeric"
                 />
                 <p className="text-xs text-slate-400 mt-1">Day of month to calculate overflow (e.g., 25th)</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">Debt Monthly Budget ({currencyCode})</label>
+                <input
+                  type="number"
+                  value={debtMonthlyBudget}
+                  onChange={(e) => setDebtMonthlyBudget(e.target.value)}
+                  placeholder="50000"
+                  min="0"
+                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-800 bg-slate-950/60 text-slate-100 focus:border-purple-500 transition"
+                  inputMode="numeric"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Used by the Strategy Lab and dashboard to project payoff timelines.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2">Preferred Payoff Strategy</label>
+                <div className="inline-flex rounded-xl border border-slate-800/70 bg-slate-950/50 p-1">
+                  {(['snowball', 'avalanche'] as const).map(option => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setDebtStrategyPreference(option)}
+                      className={`px-4 py-2 text-xs font-semibold uppercase tracking-wide rounded-lg transition ${
+                        debtStrategyPreference === option
+                          ? 'bg-purple-500/30 text-purple-100 border border-purple-400/60 shadow-inner'
+                          : 'text-slate-300 hover:text-purple-100'
+                      }`}
+                    >
+                      {option === 'snowball' ? 'Snowball' : 'Avalanche'}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  This selection preloads wherever debt strategies are shown.
+                </p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
