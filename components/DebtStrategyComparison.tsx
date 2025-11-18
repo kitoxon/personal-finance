@@ -268,16 +268,16 @@ export function DebtStrategyComparison({
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Your default strategy
             </p>
-            <div className="mt-2 inline-flex rounded-xl border border-slate-800/60 bg-slate-950/60 p-1">
+            <div className="mt-2 inline-flex w-full rounded-full border border-slate-800/70 bg-slate-950/50 p-1">
               {(['snowball', 'avalanche'] as const).map(option => (
                 <button
                   key={option}
                   type="button"
                   onClick={() => setStrategyPreference(option)}
-                  className={`px-4 py-1.5 text-xs font-semibold uppercase tracking-wide rounded-lg transition ${
+                  className={`flex-1 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide border transition ${
                     strategyPreference === option
-                      ? 'bg-rose-500/20 text-rose-100 border border-rose-400/60 shadow-inner'
-                      : 'text-slate-300 hover:text-rose-100'
+                      ? 'bg-rose-500/20 text-rose-100 border-rose-400/60 shadow-inner'
+                      : 'text-slate-300 border-transparent hover:text-rose-100'
                   }`}
                 >
                   {STRATEGY_LABELS[option]}
