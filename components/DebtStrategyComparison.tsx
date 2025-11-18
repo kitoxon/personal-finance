@@ -163,6 +163,7 @@ export function DebtStrategyComparison({
   const resolvedBudgetValue = Number.isFinite(parsedBudget)
     ? parsedBudget
     : initialBudget || sliderMin;
+  const sliderValue = Math.min(Math.max(resolvedBudgetValue, sliderMin), sliderMax);
 
   const comparison = useMemo(() => {
     if (!hasDebts || budgetError || unpaidDebts.length === 0) {
@@ -232,7 +233,7 @@ export function DebtStrategyComparison({
           </div>
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold text-slate-50">
-              {currencyFormatter.format(Number.isFinite(parsedBudget) ? parsedBudget : 0)}
+              {currencyFormatter.format(resolvedBudgetValue)}
             </span>
           </div>
         </div>
@@ -242,7 +243,7 @@ export function DebtStrategyComparison({
             min={sliderMin}
             max={sliderMax}
             step={500}
-            value={Number.isFinite(parsedBudget) ? Math.min(Math.max(parsedBudget, sliderMin), sliderMax) : sliderMin}
+            value={sliderValue}
             onChange={event => setMonthlyBudget(event.target.value)}
             className="w-full accent-rose-400"
           />

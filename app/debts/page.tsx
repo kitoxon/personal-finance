@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import {
   addDays,
+  addMonths,
   differenceInCalendarDays,
   format,
   formatDistanceToNow,
@@ -61,6 +62,8 @@ const formatInterestLabel = (rate?: number | null) => {
 };
 
 const QUICK_PAYMENT_DEFAULT = 50000;
+const DEBTS_VIEW_MODE_STORAGE_KEY = 'debtsViewMode';
+const DEBTS_FILTERS_STORAGE_KEY = 'debtsFilters';
 
 export default function DebtsPage() {
   const [amount, setAmount] = useState('');
@@ -118,6 +121,44 @@ export default function DebtsPage() {
       setPlanDebt(next);
     }
   }, [debts, planDebt]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedView = window.localStorage.getItem(DEBTS_VIEW_MODE_STORAGE_KEY);
+    if (storedView === 'detailed' || storedView === 'compact') {
+      setViewMode(storedView);
+    }
+    const storedFiltersRaw = window.localStorage.getItem(DEBTS_FILTERS_STORAGE_KEY);
+    if (storedFiltersRaw) {
+      try {
+        const parsed: { searchTerm?: string; showPaid?: boolean } = JSON.parse(storedFiltersRaw);
+        if (typeof parsed.searchTerm === 'string') {
+          setSearchTerm(parsed.searchTerm);
+        }
+        if (typeof parsed.showPaid === 'boolean') {
+          setShowPaid(parsed.showPaid);
+        }
+      } catch {
+        // ignore parse issues
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(DEBTS_VIEW_MODE_STORAGE_KEY, viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      DEBTS_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        searchTerm,
+        showPaid,
+      }),
+    );
+  }, [searchTerm, showPaid]);
 
   const filteredDebts = useMemo(() => {
     const needle = searchTerm.trim().toLowerCase();
@@ -471,9 +512,11 @@ export default function DebtsPage() {
       return;
     }
     try {
+      const parsedDue = parseAppDate(debt.dueDate) ?? new Date();
+      const nextDueDate = format(addMonths(parsedDue, 1), 'yyyy-MM-dd');
       await updateDebtDetailsMutation.mutateAsync({
         id: debt.id,
-        updates: { amount: nextAmount },
+        updates: { amount: nextAmount, dueDate: nextDueDate },
       });
     } catch {
       setListError('Failed to apply quick payment. Please try again.');
@@ -772,7 +815,7 @@ export default function DebtsPage() {
           />
         </div>
 
-        <div className="mb-8 grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="mb-8 space-y-4">
           <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 sm:p-6 shadow-lg">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -832,7 +875,7 @@ export default function DebtsPage() {
               )}
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 sm:p-6 shadow-lg">
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 sm:p-6 shadow-lg lg:hidden">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
               Quick add
             </h3>
@@ -979,7 +1022,7 @@ export default function DebtsPage() {
           </div>
         </form>
 
-        <div className="space-y-6">
+        <div className="space-y-6 mt-8">
           <div>
             <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-slate-100">
               <AlertCircle size={20} className="text-rose-200" />
@@ -1203,70 +1246,112 @@ export default function DebtsPage() {
                 Paid ({paidDebts.length})
               </h2>
               <div className="space-y-3">
-                {paidDebts.map(debt => (
-                  <div
-                    key={debt.id}
-                    className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-slate-200 shadow-md transition hover:shadow-lg sm:p-5"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
+                {paidDebts.map(debt => {
+                  if (viewMode === 'compact') {
+                    return (
+                      <div
+                        key={debt.id}
+                        className="flex items-center justify-between rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100"
+                      >
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleSelected(debt.id)}
+                            className="text-emerald-200"
+                            aria-label={selectedIds.has(debt.id) ? 'Deselect debt' : 'Select debt'}
+                          >
+                            {selectedIds.has(debt.id) ? <CheckSquare size={18} /> : <Square size={18} />}
+                          </button>
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-slate-200 line-through">{debt.name}</span>
+                            <span className="text-[11px] text-slate-400">
+                              Cleared {formatDateForDisplay(debt.dueDate, 'MMM d, yyyy')}
+                            </span>
+                            {getLastUpdatedText(debt) && (
+                              <span className="text-[11px] text-slate-500">
+                                Updated {getLastUpdatedText(debt)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => toggleSelected(debt.id)}
-                          className="mt-1 text-emerald-200 transition hover:text-emerald-100"
-                          aria-label={selectedIds.has(debt.id) ? 'Deselect debt' : 'Select debt'}
+                          onClick={() => handleTogglePaid(debt.id, debt.isPaid)}
+                          className="rounded-lg p-1 text-slate-200 transition hover:bg-slate-100/10"
+                          aria-label="Mark as unpaid"
+                          disabled={updateDebtMutation.isPending}
                         >
-                          {selectedIds.has(debt.id) ? (
-                            <CheckSquare size={20} />
-                          ) : (
-                            <Square size={20} />
-                          )}
+                          <Circle size={16} />
                         </button>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold uppercase tracking-wide text-slate-200 line-through">
-                              {debt.name}
-                            </span>
-                            <span className="rounded-full border border-emerald-400/80 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
-                              Paid
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs text-slate-400">
-                            Cleared on {formatDateForDisplay(debt.dueDate, 'MMM d, yyyy')}
-                          </p>
-                          <p className="mt-3 text-xl font-bold text-slate-200 line-through">
-                            {currencyFormatter.format(debt.amount)}
-                          </p>
-                          {getLastUpdatedText(debt) && (
-                            <p className="text-xs text-slate-500">
-                              Updated {getLastUpdatedText(debt)}
-                            </p>
-                          )}
-                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(debt.id)}
-                        className="rounded-lg p-2 text-rose-200 transition hover:bg-rose-500/10 hover:text-rose-100 disabled:opacity-60"
-                        disabled={deleteDebtMutation.isPending}
-                        aria-label="Delete debt"
-                      >
-                        <Trash2 size={20} />
-                      </button>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={debt.id}
+                      className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-slate-200 shadow-md transition hover:shadow-lg sm:p-5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleSelected(debt.id)}
+                            className="mt-1 text-emerald-200 transition hover:text-emerald-100"
+                            aria-label={selectedIds.has(debt.id) ? 'Deselect debt' : 'Select debt'}
+                          >
+                            {selectedIds.has(debt.id) ? (
+                              <CheckSquare size={20} />
+                            ) : (
+                              <Square size={20} />
+                            )}
+                          </button>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold uppercase tracking-wide text-slate-200 line-through">
+                                {debt.name}
+                              </span>
+                              <span className="rounded-full border border-emerald-400/80 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
+                                Paid
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-400">
+                              Cleared on {formatDateForDisplay(debt.dueDate, 'MMM d, yyyy')}
+                            </p>
+                            <p className="mt-3 text-xl font-bold text-slate-200 line-through">
+                              {currencyFormatter.format(debt.amount)}
+                            </p>
+                            {getLastUpdatedText(debt) && (
+                              <p className="text-xs text-slate-500">
+                                Updated {getLastUpdatedText(debt)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(debt.id)}
+                          className="rounded-lg p-2 text-rose-200 transition hover:bg-rose-500/10 hover:text-rose-100 disabled:opacity-60"
+                          disabled={deleteDebtMutation.isPending}
+                          aria-label="Delete debt"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePaid(debt.id, debt.isPaid)}
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-rose-400 hover:text-rose-100 disabled:opacity-60"
+                          disabled={updateDebtMutation.isPending}
+                        >
+                          <Circle size={18} />
+                          {updateDebtMutation.isPending ? 'Updating...' : 'Mark as unpaid'}
+                        </button>
+                      </div>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePaid(debt.id, debt.isPaid)}
-                        className="inline-flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-rose-400 hover:text-rose-100 disabled:opacity-60"
-                        disabled={updateDebtMutation.isPending}
-                      >
-                        <Circle size={18} />
-                        {updateDebtMutation.isPending ? 'Updating...' : 'Mark as unpaid'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

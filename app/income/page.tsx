@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import SyncStatus from '@/components/SyncStatus';
 import { storage, Income, DEFAULT_CURRENCY_CODE, DEFAULT_CURRENCY_LOCALE } from '@/lib/storage';
@@ -18,6 +18,7 @@ import {
 import { format, subMonths, startOfMonth } from 'date-fns';
 
 const quickAmounts = [100000, 250000, 500000, 1000000] as const;
+const INCOME_VIEW_MODE_STORAGE_KEY = 'incomeViewMode';
 
 export default function IncomePage() {
   const [amount, setAmount] = useState('');
@@ -77,6 +78,19 @@ export default function IncomePage() {
   const incomes = useMemo<Income[]>(() => {
     return [...incomesData].sort((a, b) => b.month.localeCompare(a.month));
   }, [incomesData]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem(INCOME_VIEW_MODE_STORAGE_KEY);
+    if (stored === 'detailed' || stored === 'compact') {
+      setViewMode(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(INCOME_VIEW_MODE_STORAGE_KEY, viewMode);
+  }, [viewMode]);
 
   const saveIncomeMutation = useMutation({
     mutationFn: storage.saveIncome,

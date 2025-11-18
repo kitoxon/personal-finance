@@ -13,6 +13,7 @@ import { useDebtReminders } from '@/hooks/useDebtReminders';
 import { calculateMonthlyOverflow } from '@/lib/overflow';
 import { useOverflowNotifications } from '@/hooks/useOverflowNotifications';
 import { calculatePayoffSchedule } from '@/lib/debtCalculator';
+import { compareDebtStrategies } from '@/lib/debtStrategy';
 export default function Dashboard() {
   useOverflowNotifications();
   useDebtReminders();
@@ -278,8 +279,16 @@ export default function Dashboard() {
       };
     }
 
+    const preferredBudget = settings?.debtMonthlyBudget ?? 0;
+    const preferredStrategy = settings?.debtStrategyPreference ?? 'snowball';
+    const perDebtBudget =
+      preferredBudget > 0 ? Math.max(5000, Math.round(preferredBudget / activeDebts.length)) : null;
+
     const items = activeDebts.map(debt => {
-      const estimatedPayment = Math.max(10000, Math.round(debt.amount / 12));
+      const estimatedPayment =
+        perDebtBudget !== null
+          ? Math.max(1000, perDebtBudget)
+          : Math.max(10000, Math.round(debt.amount / 12));
       const projection = calculatePayoffSchedule(
         debt.amount,
         estimatedPayment,
@@ -322,8 +331,14 @@ export default function Dashboard() {
       overallDate,
       overallMonths,
       totalInterest,
+      budget: preferredBudget,
+      strategy: preferredStrategy,
+      comparison:
+        preferredBudget > 0
+          ? compareDebtStrategies(activeDebts, preferredBudget)
+          : null,
     };
-  }, [debts]);
+  }, [debts, settings]);
 
   const goalBreakdown = useMemo(() => {
     const activeGoals = goals.filter(goal => !goal.isCompleted);
@@ -782,6 +797,23 @@ export default function Dashboard() {
                 </p>
                 <h3 className="text-xl font-semibold text-slate-50">Debt Freedom Tracker</h3>
                 <p className="text-sm text-slate-300">{debtFreedomSummary}</p>
+                {debtFreedomTracker.items.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    {debtFreedomTracker.budget ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/60 bg-emerald-500/15 px-3 py-1 font-semibold uppercase tracking-wide text-emerald-100">
+                        Budget {formatCurrency(debtFreedomTracker.budget)} / mo
+                      </span>
+                    ) : null}
+                    <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/60 bg-indigo-500/15 px-3 py-1 font-semibold uppercase tracking-wide text-indigo-100">
+                      Strategy {debtFreedomTracker.strategy === 'avalanche' ? 'Highest interest first' : 'Smallest balance first'}
+                    </span>
+                    {debtFreedomTracker.comparison?.recommendation && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-rose-400/60 bg-rose-500/15 px-3 py-1 font-semibold uppercase tracking-wide text-rose-100">
+                        Best fit: {debtFreedomTracker.comparison.recommendation}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/50 bg-indigo-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-100">

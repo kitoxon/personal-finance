@@ -263,7 +263,7 @@ export default function CashOverflowPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 -mt-4 space-y-6">
+      <div className="max-w-6xl mx-auto px-6 -mt-4 space-y-6 pb-16">
         {/* Overflow Summary */}
         {overflowCalc && statusMessage && (
           <div className={`rounded-2xl border p-5 ${
